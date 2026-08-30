@@ -1,0 +1,235 @@
+// ============================================
+// Fila de processamento de promoções
+// Garante envio sequencial com delays humanizados
+// ============================================
+
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+const logger = require('../utils/logger');
+const { randomDelay, formatMs } = require('../utils/delay');
+
+// Fila FIFO interna — armazena as promoções pendentes
+const queue = [];
+
+// Flag para controle do loop de processamento
+let isProcessing = false;
+
+// Arquivo de persistência da fila
+const QUEUE_FILE = path.join(__dirname, '../../.queue_backup.json');
+
+/**
+ * Carrega fila do arquivo de backup (se existir).
+ * Útil para recuperar promoções após um restart.
+ */
+function loadQueueFromDisk() {
+  try {
+    if (fs.existsSync(QUEUE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf-8'));
+      queue.push(...data);
+      logger.info(`[Fila] ${data.length} promoção(ões) restaurada(s) do backup.`);
+      fs.unlinkSync(QUEUE_FILE);
+    }
+  } catch (error) {
+    logger.warn(`[Fila] Erro ao carregar backup da fila:`, error.message);
+  }
+}
+
+/**
+ * Salva fila no disco como backup (em caso de crash/restart).
+ */
+function saveQueueToDisk() {
+  try {
+    if (queue.length > 0) {
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2), 'utf-8');
+      logger.debug(`[Fila] ${queue.length} promoção(ões) salva(s) em backup.`);
+    }
+  } catch (error) {
+    logger.warn(`[Fila] Erro ao salvar backup da fila:`, error.message);
+  }
+}
+
+// Carrega fila ao inicializar o módulo
+loadQueueFromDisk();
+
+/**
+ * Adiciona uma promoção na fila de envio.
+ *
+ * @param {object} promo - Objeto da promoção
+ * @param {string} promo.title - Título da promoção
+ * @param {string} promo.affiliateUrl - Link de afiliado convertido
+ * @param {string} promo.platform - Plataforma detectada
+ * @param {string[]} promo.prices - Preços encontrados
+ * @param {string} promo.rawText - Texto original da mensagem
+ */
+function enqueue(promo) {
+  queue.push(promo);
+  logger.info(`[Fila] Promoção adicionada. Tamanho da fila: ${queue.length}`);
+  logger.debug(`[Fila] Detalhes:`, {
+    title: promo.title,
+    platform: promo.platform,
+    url: promo.affiliateUrl,
+  });
+}
+
+/**
+ * Formata a mensagem de promoção para envio no grupo destino.
+ * Personaliza o formato conforme desejar.
+ *
+ * @param {object} promo - Objeto da promoção
+ * @returns {string} - Mensagem formatada
+ */
+function formatMessage(promo) {
+  const parts = [];
+
+  // Título (se existir)
+  if (promo.title) {
+    parts.push(`🔥 *${promo.title}*`);
+  }
+
+  // Preço (se existir)
+  if (promo.prices && promo.prices.length > 0) {
+    parts.push(`💰 ${promo.prices.join(' → ')}`);
+  }
+
+  // Link de afiliado
+  if (promo.affiliateUrl) {
+    parts.push(`\n🔗 ${promo.affiliateUrl}`);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Envia uma mensagem para o grupo destino com simulação de typing.
+ * Com retry automático em caso de falha.
+ *
+ * Fluxo:
+ *   1. Busca o chat do grupo destino
+ *   2. Simula "digitando..." por tempo aleatório
+ *   3. Envia a mensagem formatada
+ *   4. Em caso de erro, retenta com backoff exponencial
+ *
+ * @param {import('whatsapp-web.js').Client} client - Client do WhatsApp
+ * @param {object} promo - Promoção a ser enviada
+ * @param {number} [attempt=1] - Número da tentativa
+ */
+async function sendPromo(client, promo, attempt = 1) {
+  const MAX_RETRIES = 3;
+  const message = formatMessage(promo);
+
+  try {
+    // Busca o chat do grupo destino
+    const chat = await client.getChatById(config.destGroup);
+
+    // Simula "digitando..." — comportamento humano
+    await chat.sendStateTyping();
+    const typingTime = await randomDelay(config.typingDelayMin, config.typingDelayMax);
+    logger.info(`[Fila] Simulando digitação por ${formatMs(typingTime)}...`);
+
+    // Limpa o estado de digitação e envia
+    await chat.clearState();
+    await chat.sendMessage(message);
+
+    logger.info(`[Fila] ✅ Promoção enviada: "${promo.title || 'Sem título'}"`);
+  } catch (error) {
+    logger.error(`[Fila] ❌ Erro ao enviar (tentativa ${attempt}/${MAX_RETRIES}):`, error.message);
+
+    if (attempt < MAX_RETRIES) {
+      // Backoff exponencial: 5s, 15s, 30s
+      const backoffMs = Math.pow(attempt, 2) * 5000;
+      logger.info(`[Fila] Aguardando ${formatMs(backoffMs)} antes de retry...`);
+      await randomDelay(backoffMs, backoffMs + 5000);
+      return sendPromo(client, promo, attempt + 1);
+    } else {
+      logger.error(`[Fila] Falhou após ${MAX_RETRIES} tentativas. Descartando promoção.`);
+      throw error;
+    }
+  }
+}
+
+/**
+ * Loop principal de processamento da fila.
+ * Roda indefinidamente enquanto o bot estiver ativo.
+ *
+ * Comportamento:
+ *   - Se há itens na fila: processa o próximo com delay entre envios
+ *   - Se fila vazia: aguarda o intervalo de verificação e checa novamente
+ *
+ * @param {import('whatsapp-web.js').Client} client - Client do WhatsApp
+ */
+async function startProcessing(client) {
+  if (isProcessing) {
+    logger.warn('[Fila] Processamento já está ativo. Ignorando chamada duplicada.');
+    return;
+  }
+
+  isProcessing = true;
+  logger.info('[Fila] Processador de fila iniciado.');
+
+  while (isProcessing) {
+    if (queue.length > 0) {
+      // Remove o primeiro item (FIFO)
+      const promo = queue.shift();
+      logger.info(`[Fila] Processando promoção. Restam ${queue.length} na fila.`);
+
+      try {
+        await sendPromo(client, promo);
+      } catch (error) {
+        logger.error(`[Fila] Erro ao enviar promoção:`, error.message);
+        // Não re-adiciona na fila para evitar loop infinito de erros
+      }
+
+      // Delay aleatório entre mensagens (anti-banimento)
+      if (queue.length > 0) {
+        const waitTime = await randomDelay(config.queueDelayMin, config.queueDelayMax);
+        logger.info(`[Fila] Aguardando ${formatMs(waitTime)} antes do próximo envio...`);
+      }
+    } else {
+      // Fila vazia — aguarda antes de verificar novamente
+      await randomDelay(config.queueCheckInterval, config.queueCheckInterval + 5000);
+    }
+  }
+}
+
+/**
+ * Para o processamento da fila (graceful shutdown).
+ */
+function stopProcessing() {
+  isProcessing = false;
+  logger.info('[Fila] Processamento parado.');
+}
+
+/**
+ * Retorna o tamanho atual da fila (útil para debug/monitoramento).
+ */
+function getQueueSize() {
+  return queue.length;
+}
+
+/**
+ * Obter estatísticas da fila (para dashboard/monitoramento futuro).
+ */
+function getQueueStats() {
+  return {
+    size: queue.length,
+    processing: isProcessing,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Força salvamento da fila (para shutdown graceful).
+ */
+function saveBeforeExit() {
+  saveQueueToDisk();
+}
+
+module.exports = {
+  enqueue,
+  startProcessing,
+  stopProcessing,
+  getQueueSize,
+  getQueueStats,
+  saveBeforeExit,
+};

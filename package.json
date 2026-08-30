@@ -1,0 +1,27 @@
+{
+  "name": "promo-bot",
+  "version": "1.0.0",
+  "description": "Bot gerenciador de promoções e links de afiliados para WhatsApp",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "status": "node status.js",
+    "start": "npm run setup && node index.js",
+    "start:direct": "node index.js",
+    "qr": "node generate-qr.js",
+    "web": "node web-setup.js",
+    "web-auth": "echo '🌐 Abrindo http://localhost:3000 no navegador...' && node web-setup.js",
+    "list-groups": "node src/scripts/list-groups.js",
+    "test:regex": "node test-regex.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.22.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.6"
+  }
+}

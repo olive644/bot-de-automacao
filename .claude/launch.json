@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "promo-bot",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 0
+    },
+    {
+      "name": "list-groups",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "list-groups"],
+      "port": 0
+    }
+  ]
+}
