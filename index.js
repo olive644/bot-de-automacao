@@ -17,6 +17,7 @@ const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require(
 const { startItadSource, stopItadSource } = require('./src/services/itad');
 const { startAliexpressSource, stopAliexpressSource } = require('./src/services/aliexpress');
 const { startTelegramSource, stopTelegramSource } = require('./src/services/telegram');
+const { startHealthReport, stopHealthReport } = require('./src/services/health');
 const logger = require('./src/utils/logger');
 
 // --- Validação mínima de configuração ---
@@ -75,6 +76,9 @@ client.once('ready', async () => {
 
   // O Telegram não depende do WhatsApp Web: basta a fila estar rodando.
   startTelegramSource();
+  
+  // Vigia as fontes que consultam sozinhas e avisa quando alguma para.
+  startHealthReport();
 });
 
 // --- Graceful shutdown (Ctrl+C) ---
@@ -85,6 +89,7 @@ process.on('SIGINT', async () => {
   stopItadSource();
   stopAliexpressSource();
   stopTelegramSource();
+  stopHealthReport();
   saveBeforeExit();
 
   try {

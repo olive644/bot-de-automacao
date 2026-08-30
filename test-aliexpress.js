@@ -35,7 +35,14 @@ assert.deepEqual(toOfferItem(card('1005010368393943', 'Placa de vídeo RX580', 1
   permalink: 'https://pt.aliexpress.com/item/1005010368393943.html',
   price: 677.52,
   original_price: 1075.44,
+  imageUrl: null,
 });
+
+// A imgUrl do AliExpress vem sem protocolo; quem normaliza é o utilitário
+// de mídia, na hora do envio.
+const comFoto = card('111', 'Com foto', 200, 100);
+comFoto.image = { imgUrl: '//ae-pic-a1.aliexpress-media.com/kf/Se11.jpg' };
+assert.equal(toOfferItem(comFoto).imageUrl, '//ae-pic-a1.aliexpress-media.com/kf/Se11.jpg');
 
 // Preço em outra moeda é descartado: anunciar dólar num grupo brasileiro
 // seria enganoso.

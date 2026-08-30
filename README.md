@@ -14,6 +14,9 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Persistência** — recupera promoções não enviadas após restart  
 ✅ **Retry automático** — tenta novamente em caso de falha (backoff exponencial)  
 ✅ **Detecção de duplicatas** — evita repostar a mesma promoção  
+✅ **Autodiagnóstico** — avisa quando uma fonte para de entregar
+✅ **Histórico de preço** — descarta desconto inflado contra preço-âncora
+✅ **Foto do produto** — coletores enviam imagem junto com a oferta
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
 ✅ **Telegram como fonte (opcional)** — grupos e canais via bot do @BotFather
@@ -274,6 +277,68 @@ Quando a promoção de origem traz um código de cupom, ele sai sozinho, em mono
 A condição de uso vem abaixo, com `↳`, e só quando diz algo além do próprio código — "Use o cupom: JOGA20" some, porque o código já está em destaque. Quando a origem menciona cupom sem informar código ("Cupom de R$ 50 na primeira compra"), a linha é repassada inteira.
 
 O código precisa parecer código: alfanumérico em caixa alta, com pelo menos três caracteres. É isso que impede o bot de anunciar `de` ou `RESGATE` como se fosse cupom.
+
+---
+
+## 🩺 Autodiagnóstico das fontes
+
+O motivo de existir é concreto: o coletor do Mercado Livre ficou quebrado e **nada avisou** — a falha só apareceu quando alguém reparou que o grupo tinha esfriado. Um coletor que erra continua logando e seguindo em frente, e um aviso perdido no meio de milhares de linhas não é aviso.
+
+De tempos em tempos o bot olha a janela inteira e diz, em uma linha por fonte, quem está entregando e quem parou:
+
+```
+[Saúde] Relatório das últimas 24h:
+[Saúde] AliExpress: 3 ciclo(s), 159 item(ns) lido(s), 3 oferta(s) enviada(s).
+[Saúde] ITAD: 1 ciclo(s), 0 item(ns) lido(s), 0 oferta(s) enviada(s) — rodou mas não leu nada. Provável mudança no site da fonte.
+[Saúde] Mercado Livre: 3 ciclo(s), 396 item(ns) lido(s), 5 oferta(s) enviada(s).
+```
+
+Três situações viram aviso, e cada uma tem um sintoma diferente:
+
+| Situação | O que provavelmente aconteceu |
+| --- | --- |
+| Nenhum ciclo na janela | A fonte está ligada mas não rodou |
+| Todos os ciclos falharam | API fora do ar ou bloqueando, como o ITAD respondendo 500 |
+| Rodou sem erro e não leu nada | O site mudou de formato — o caso mais traiçoeiro, porque não levanta exceção |
+
+```env
+HEALTH_REPORT_ENABLED=true
+HEALTH_REPORT_HOURS=6
+HEALTH_WINDOW_HOURS=24
+```
+
+**WhatsApp e Telegram ficam fora do relatório de propósito.** Eles só entregam quando alguém publica no grupo de origem, e silêncio ali é normal. Cobrar atividade deles encheria o relatório de alarme falso — que é o jeito mais rápido de fazer alguém parar de ler o relatório.
+
+---
+
+## 💰 Histórico de preço contra desconto inflado
+
+As plataformas anunciam o desconto contra um "preço de" que elas mesmas escolhem, e ele nem sempre corresponde ao que o produto custava. O bot guarda o menor preço que **viu com os próprios olhos** e só publica a oferta que chegue perto dele.
+
+```env
+PRICE_HISTORY_ENABLED=true
+PRICE_HISTORY_TOLERANCE=5
+```
+
+Na primeira vez que um produto aparece não há com o que comparar, e ele passa — aquele preço vira a primeira referência. Da segunda em diante, oferta acima do menor já visto some do grupo com o motivo no log:
+
+```
+[Preço] Descartada por desconto duvidoso (já vi por 50.00 e agora está 200.00): ...
+```
+
+O histórico é por fonte: o mesmo id em plataformas diferentes não se mistura.
+
+---
+
+## 🖼️ Imagem do produto
+
+Mercado Livre, AliExpress e ITAD enviam a foto junto com o texto, como já acontecia com as promoções vindas dos grupos. A imagem é baixada **na hora do envio**, não na coleta: assim a fila em disco não carrega centenas de KB em base64 por promoção, e nada é baixado para oferta que acabe descartada antes de sair.
+
+Falha ao baixar nunca impede o envio — a promoção vai só com o texto.
+
+```env
+SEND_PRODUCT_IMAGES=true
+```
 
 ---
 

@@ -12,6 +12,8 @@ const path = require('path');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
+const { keepOnlyRealDeals } = require('./price-history');
+const { recordCycle } = require('./health');
 
 const SEARCH_URL = 'https://pt.aliexpress.com/w/wholesale-{slug}.html';
 const ITEM_URL = 'https://pt.aliexpress.com/item/{id}.html';
@@ -125,6 +127,8 @@ function toOfferItem(entry) {
     permalink: ITEM_URL.replace('{id}', String(id)),
     price: current,
     original_price: original,
+    // imgUrl vem sem protocolo, no formato "//host/caminho.jpg".
+    imageUrl: entry?.image?.imgUrl || null,
   };
 }
 
@@ -151,7 +155,9 @@ function toPromo(item) {
     prices: [formatCurrency(originalPrice), formatCurrency(currentPrice)],
     originalPrice: formatCurrency(originalPrice),
     currentPrice: formatCurrency(currentPrice),
+    priceValue: currentPrice,
     media: null,
+    imageUrl: item.imageUrl || null,
     rawText: `${item.title}\nDe: ${formatCurrency(originalPrice)}\nPor: ${formatCurrency(currentPrice)}\n${item.permalink}`,
     sourceGroup: 'AliExpress',
     receivedAt: new Date().toISOString(),
@@ -233,13 +239,15 @@ async function poll() {
       } catch (error) {
         // Um termo com problema não pode derrubar o ciclo inteiro.
         logger.warn(`[AliExpress] Falha na busca "${query}":`, error.message);
+        recordCycle('AliExpress', { error: error.message });
         continue;
       }
 
       inspected += items.length;
-      const candidates = selectEligiblePromos(items)
-        .filter((promo) => !enqueuedIds.has(promo.id))
-        .slice(0, config.aliexpressMaxPerSearch);
+      const candidates = keepOnlyRealDeals(
+        selectEligiblePromos(items).filter((promo) => !enqueuedIds.has(promo.id)),
+        'aliexpress'
+      ).slice(0, config.aliexpressMaxPerSearch);
 
       for (const promo of candidates) {
         if (added >= config.aliexpressMaxResults) break;
@@ -254,6 +262,7 @@ async function poll() {
     }
 
     if (added > 0) saveSeen();
+    recordCycle('AliExpress', { read: inspected, added });
     logger.info(`[AliExpress] Consulta concluída: ${inspected} produto(s) lido(s), ${added} nova(s) oferta(s) elegível(is).`);
   } catch (error) {
     logger.warn('[AliExpress] Falha na consulta:', error.message);

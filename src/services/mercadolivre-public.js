@@ -17,6 +17,8 @@ const path = require('path');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
+const { keepOnlyRealDeals } = require('./price-history');
+const { recordCycle } = require('./health');
 
 const OFFERS_URL = 'https://www.mercadolivre.com.br/ofertas';
 // A página embute o estado do React como `_n.ctx.r={...};_n.ctx.r.assets...`.
@@ -147,7 +149,15 @@ function toOfferItem(entry) {
     permalink,
     price: Number(price.current_price?.value),
     original_price: readPreviousPrice(price),
+    imageUrl: buildPictureUrl(card.pictures?.pictures?.[0]?.id),
   };
+}
+
+/**
+ * O feed traz só o id da foto; a URL é montada a partir dele.
+ */
+function buildPictureUrl(pictureId) {
+  return pictureId ? `https://http2.mlstatic.com/D_NQ_NP_2X_${pictureId}-F.webp` : null;
 }
 
 /**
@@ -178,7 +188,9 @@ function toPromo(item) {
     prices: [formatCurrency(originalPrice), formatCurrency(currentPrice)],
     originalPrice: formatCurrency(originalPrice),
     currentPrice: formatCurrency(currentPrice),
+    priceValue: currentPrice,
     media: null,
+    imageUrl: item.imageUrl || null,
     rawText: `${item.title}\nDe: ${formatCurrency(originalPrice)}\nPor: ${formatCurrency(currentPrice)}\n${item.permalink}`,
     sourceGroup: item.sourceGroup || 'Mercado Livre (ofertas do dia)',
     receivedAt: new Date().toISOString(),
@@ -268,14 +280,17 @@ async function poll() {
       } catch (error) {
         // Uma categoria com problema não deve derrubar o ciclo inteiro.
         logger.warn(`[Mercado Livre] Falha ao ler a categoria ${category}:`, error.message);
+        recordCycle('Mercado Livre', { error: error.message });
         continue;
       }
 
       inspected += items.length;
-      const candidates = selectEligiblePromos(items)
-        .filter((promo) => !enqueuedIds.has(promo.id))
-        .filter((promo) => matchesKeywords(promo.title, config.mercadoLivreKeywords))
-        .slice(0, config.mercadoLivreMaxPerCategory);
+      const candidates = keepOnlyRealDeals(
+        selectEligiblePromos(items)
+          .filter((promo) => !enqueuedIds.has(promo.id))
+          .filter((promo) => matchesKeywords(promo.title, config.mercadoLivreKeywords)),
+        'mercadolivre'
+      ).slice(0, config.mercadoLivreMaxPerCategory);
 
       for (const promo of candidates) {
         if (added >= config.mercadoLivreMaxResults) break;
@@ -290,6 +305,7 @@ async function poll() {
     }
 
     if (added > 0) saveSeen();
+    recordCycle('Mercado Livre', { read: inspected, added });
     logger.info(`[Mercado Livre] Consulta concluída: ${inspected} oferta(s) lida(s), ${added} nova(s) elegível(is).`);
   } catch (error) {
     logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);

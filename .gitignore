@@ -10,3 +10,5 @@ qrcode.png
 .queue_backup.json
 logs/
 .aliexpress_seen.json
+.price_history.json
+.health.json
