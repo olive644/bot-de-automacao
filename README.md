@@ -277,6 +277,21 @@ O cliente tenta reconectar automaticamente.
 
 ## 🚨 Troubleshooting
 
+### `Erro ao buscar chats: r`
+
+O projeto inclui um patch de compatibilidade para mudanças internas recentes do
+WhatsApp Web. Atualize e reinstale as dependências antes de tentar novamente:
+
+```bash
+git pull
+npm install
+npm run list-groups
+```
+
+Se a listagem geral ainda falhar, o comando entra automaticamente no modo
+alternativo. Envie uma mensagem no grupo desejado e copie o ID exibido no
+terminal. Pressione `Ctrl+C` quando terminar.
+
 ### Bot não conecta ao WhatsApp
 
 ```bash

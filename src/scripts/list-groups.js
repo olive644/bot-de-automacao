@@ -12,6 +12,22 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
+const observedChats = new Set();
+
+function printObservedChat(message) {
+  const chatId = message.from || '';
+  const isGroup = chatId.endsWith('@g.us');
+  const isChannel = chatId.endsWith('@newsletter');
+
+  if ((!isGroup && !isChannel) || observedChats.has(chatId)) return;
+
+  observedChats.add(chatId);
+  console.log('\nChat detectado por mensagem:');
+  console.log(`  ID: ${chatId}`);
+  console.log(`  Tipo: ${isChannel ? 'canal' : 'grupo'}`);
+  console.log('  Copie esse ID para o arquivo .env.\n');
+}
+
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -24,6 +40,11 @@ client.on('qr', (qr) => {
   console.log('\nEscaneie o QR Code abaixo para conectar:\n');
   qrcode.generate(qr, { small: true });
 });
+
+// Alternativa ao getChats(): detecta inclusive mensagens enviadas pelo
+// próprio número conectado, sem depender da listagem interna do WhatsApp Web.
+client.on('message', printObservedChat);
+client.on('message_create', printObservedChat);
 
 client.on('ready', async () => {
   console.log('\nConectado! Buscando grupos e canais...\n');
@@ -51,9 +72,18 @@ client.on('ready', async () => {
 
     // --- CANAIS (aba Atualizações) ---
     // Canais têm o tipo 'newsletter' ou id terminando em @newsletter
-    const channels = chats.filter(
+    let channels = chats.filter(
       (chat) => chat.id && chat.id._serialized && chat.id._serialized.endsWith('@newsletter')
     );
+
+    // Nas versões atuais, canais podem ser retornados separadamente.
+    if (typeof client.getChannels === 'function') {
+      try {
+        channels = await client.getChannels();
+      } catch (channelError) {
+        console.warn('Não foi possível listar canais:', channelError.message || channelError);
+      }
+    }
 
     console.log('='.repeat(70));
     console.log(`CANAIS / ABA ATUALIZAÇÕES (${channels.length} encontrados):`);
@@ -76,7 +106,12 @@ client.on('ready', async () => {
     console.log('  SOURCE_GROUPS=120363XXXXXXXXXX@newsletter   <- canal fonte');
     console.log('  DEST_GROUP=120363ZZZZZZZZZZ@g.us           <- grupo destino');
   } catch (error) {
-    console.error('Erro ao buscar chats:', error.message);
+    console.error('Erro ao buscar chats:', error.stack || error);
+    console.log('\nMODO ALTERNATIVO ATIVADO');
+    console.log('Envie uma mensagem no grupo desejado usando qualquer participante.');
+    console.log('O ID aparecerá aqui automaticamente.');
+    console.log('Pressione Ctrl+C quando terminar.\n');
+    return;
   }
 
   // Encerra a sessão e o processo

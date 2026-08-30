@@ -41,6 +41,22 @@ Soluções para problemas comuns ao usar o bot.
 
 ## 🔌 Problemas de Conexão
 
+### "Erro ao buscar chats: r"
+
+Esse erro acontece quando o WhatsApp Web altera estruturas internas usadas pelo
+`whatsapp-web.js`. Este projeto aplica automaticamente um patch compatível após
+o `npm install`.
+
+```bash
+git pull
+npm install
+npm run list-groups
+```
+
+Se a listagem ainda não estiver disponível, mantenha o comando aberto e envie
+uma mensagem no grupo desejado. O modo alternativo mostrará o ID terminado em
+`@g.us` ou `@newsletter`. Copie-o para o `.env` e encerre com `Ctrl+C`.
+
 ### "Bot não conecta ao WhatsApp"
 
 **Sintomas:**

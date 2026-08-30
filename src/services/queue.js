@@ -105,10 +105,9 @@ function formatMessage(promo) {
  * Com retry automático em caso de falha.
  *
  * Fluxo:
- *   1. Busca o chat do grupo destino
- *   2. Simula "digitando..." por tempo aleatório
- *   3. Envia a mensagem formatada
- *   4. Em caso de erro, retenta com backoff exponencial
+ *   1. Aguarda um tempo de digitação humanizado
+ *   2. Envia diretamente para o ID do grupo destino
+ *   3. Em caso de erro, retenta com backoff exponencial
  *
  * @param {import('whatsapp-web.js').Client} client - Client do WhatsApp
  * @param {object} promo - Promoção a ser enviada
@@ -119,17 +118,12 @@ async function sendPromo(client, promo, attempt = 1) {
   const message = formatMessage(promo);
 
   try {
-    // Busca o chat do grupo destino
-    const chat = await client.getChatById(config.destGroup);
-
-    // Simula "digitando..." — comportamento humano
-    await chat.sendStateTyping();
+    // Evita getChatById/sendStateTyping, afetados por mudanças internas
+    // recentes do WhatsApp Web. O atraso continua espaçando os envios.
     const typingTime = await randomDelay(config.typingDelayMin, config.typingDelayMax);
-    logger.info(`[Fila] Simulando digitação por ${formatMs(typingTime)}...`);
+    logger.info(`[Fila] Aguardando ${formatMs(typingTime)} antes do envio...`);
 
-    // Limpa o estado de digitação e envia
-    await chat.clearState();
-    await chat.sendMessage(message);
+    await client.sendMessage(config.destGroup, message);
 
     logger.info(`[Fila] ✅ Promoção enviada: "${promo.title || 'Sem título'}"`);
   } catch (error) {
