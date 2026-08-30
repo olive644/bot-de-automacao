@@ -1,9 +1,10 @@
 const assert = require('node:assert/strict');
-const { formatCurrency, getDiscountPercent, toPromo, selectEligiblePromos } = require('./src/services/mercadolivre-public');
+const { formatCurrency, getDiscountPercent, toPromo, selectEligiblePromos, buildWebSearchUrl } = require('./src/services/mercadolivre-public');
 
 assert.equal(formatCurrency(52.28), 'R$ 52,28');
 assert.equal(getDiscountPercent(100, 75), 25);
 assert.equal(getDiscountPercent(100, 100), 0);
+assert.equal(buildWebSearchUrl('Placa de vídeo'), 'https://lista.mercadolivre.com.br/placa-de-video');
 
 const promo = toPromo({
   id: 'MLB123',

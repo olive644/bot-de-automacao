@@ -111,6 +111,7 @@ ML_PUBLIC_POLL_MINUTES=60
 ML_PUBLIC_MIN_DISCOUNT=20
 ML_PUBLIC_MAX_RESULTS=3
 ML_PUBLIC_MAX_PER_SEARCH=1
+ML_WEB_FALLBACK_ENABLED=true
 ```
 
 ### 5️⃣ Iniciar o Bot
@@ -250,6 +251,8 @@ ML_PUBLIC_MAX_RESULTS=3
 
 O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Ele avalia até 50 resultados por termo, prioriza o maior desconto e alterna a ordem das pesquisas a cada ciclo, evitando que jogos ou hardware fiquem sempre por último.
 
+Quando a API negar acesso, `ML_WEB_FALLBACK_ENABLED=true` permite que o bot tente a página pública do Mercado Livre pelo navegador local. Essa alternativa depende da estrutura pública do site e pode parar se houver CAPTCHA ou mudança de layout; nesse caso, o bot mantém as demais fontes ativas.
+
 Se a API responder `401` ou `403`, o bot pode tentar automaticamente a credencial da própria aplicação, sem login de usuário. Gere uma chave nova no painel do Mercado Livre e mantenha-a apenas no `.env` local:
 
 ```env
@@ -270,9 +273,12 @@ ITAD_COUNTRY=BR
 ITAD_POLL_MINUTES=60
 ITAD_MIN_DISCOUNT=50
 ITAD_MAX_RESULTS=3
+ITAD_SHOPS=61,16,35,50
+ITAD_PRIMARY_SHOPS=61,16
+ITAD_EXCLUDE_BUNDLES=true
 ```
 
-O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
+O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot prioriza Steam e Epic Games Store, aceita também GOG e Nuuvem e exclui bundles, cursos e masterclasses. Ele envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
 
 ---
 

@@ -34,6 +34,10 @@ function toPromo(item) {
   const url = deal.url;
   const title = item?.title;
 
+  if (config.itadExcludeBundles && (item?.type && item.type !== 'game' || /\b(?:bundle|masterclass|e[- ]?learning|course|curso)\b/i.test(title || ''))) {
+    return null;
+  }
+
   if (!item?.id || !title || !url || !Number.isFinite(price) || !Number.isFinite(regular) || regular <= price || cut < config.itadMinDiscount) {
     return null;
   }
@@ -55,6 +59,8 @@ function toPromo(item) {
     sourceGroup: 'IsThereAnyDeal',
     receivedAt: new Date().toISOString(),
     discountPercent: cut,
+    shopId: Number(deal.shop?.id) || null,
+    preferredShop: config.itadPrimaryShops.includes(Number(deal.shop?.id)),
   };
 }
 
@@ -86,6 +92,7 @@ async function fetchDeals() {
   url.searchParams.set('country', config.itadCountry);
   url.searchParams.set('sort', '-cut');
   url.searchParams.set('limit', String(Math.min(50, config.itadMaxResults * 10)));
+  if (config.itadShops.length > 0) url.searchParams.set('shops', config.itadShops.join(','));
 
   const response = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Oli-Bot/1.0' } });
   const payload = await response.json().catch(() => ({}));
@@ -102,7 +109,7 @@ async function poll() {
     const promos = (await fetchDeals())
       .map(toPromo)
       .filter((promo) => promo && !seen.has(seenKey(promo)))
-      .sort((left, right) => right.discountPercent - left.discountPercent)
+      .sort((left, right) => Number(right.preferredShop) - Number(left.preferredShop) || right.discountPercent - left.discountPercent)
       .slice(0, config.itadMaxResults);
 
     for (const promo of promos) {
@@ -127,7 +134,7 @@ function startItadSource() {
   if (!config.itadApiKey || timer) return;
 
   loadSeen();
-  logger.info(`[ITAD] Coletor de jogos ativo para ${config.itadCountry}, a cada ${config.itadPollMinutes} min.`);
+  logger.info(`[ITAD] Coletor ativo para ${config.itadCountry}; lojas ${config.itadShops.join(',')}, prioridade ${config.itadPrimaryShops.join(',')}.`);
   poll();
   timer = setInterval(poll, config.itadPollMinutes * 60 * 1000);
 }

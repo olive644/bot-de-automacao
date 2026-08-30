@@ -21,6 +21,8 @@ let nextSearchIndex = 0;
 let applicationToken = null;
 let applicationTokenExpiresAt = 0;
 let policyBlocked = false;
+let webBrowser = null;
+let webPage = null;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -107,6 +109,10 @@ async function search(query) {
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     const detail = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    if ((response.status === 401 || response.status === 403) && config.mercadoLivreWebFallbackEnabled) {
+      logger.info(`[Mercado Livre] API indisponível; usando página pública para "${query}".`);
+      return searchWebPage(query);
+    }
     const error = new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
     if (response.status === 403 && /PA_UNAUTHORIZED_RESULT_FROM_POLICIES|blocked_by/i.test(body)) {
       error.code = 'ML_POLICY_UNAUTHORIZED';
@@ -116,6 +122,66 @@ async function search(query) {
 
   const payload = await response.json();
   return Array.isArray(payload.results) ? payload.results : [];
+}
+
+function buildWebSearchUrl(query) {
+  const slug = query.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return `https://lista.mercadolivre.com.br/${slug}`;
+}
+
+async function getWebPage() {
+  if (webPage && !webPage.isClosed()) return webPage;
+  const puppeteer = require('puppeteer');
+  webBrowser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  });
+  webPage = await webBrowser.newPage();
+  await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+  await webPage.setViewport({ width: 1365, height: 900 });
+  return webPage;
+}
+
+async function searchWebPage(query) {
+  const page = await getWebPage();
+  await page.goto(buildWebSearchUrl(query), { waitUntil: 'domcontentloaded', timeout: 45000 });
+
+  const items = await page.evaluate(() => {
+    function amount(root) {
+      if (!root) return null;
+      const fraction = root.querySelector('.andes-money-amount__fraction')?.textContent || '';
+      const cents = root.querySelector('.andes-money-amount__cents')?.textContent || '00';
+      const integer = fraction.replace(/\D/g, '');
+      if (!integer) return null;
+      return Number(`${integer}.${cents.replace(/\D/g, '').padEnd(2, '0').slice(0, 2)}`);
+    }
+
+    const cards = [...document.querySelectorAll('li.ui-search-layout__item, .poly-card, .ui-search-result')];
+    return cards.slice(0, 50).map((card, index) => {
+      const link = card.querySelector('a.poly-component__title, a.ui-search-link, a[href*="mercadolivre.com.br/MLB-"]');
+      const title = link?.textContent?.trim() || card.querySelector('h2')?.textContent?.trim();
+      const currentRoot = card.querySelector('.poly-price__current .andes-money-amount, .ui-search-price__second-line .andes-money-amount, .andes-money-amount:not(.andes-money-amount--previous)');
+      const previousRoot = card.querySelector('.andes-money-amount--previous, .ui-search-price__original-value .andes-money-amount');
+      const permalink = link?.href || '';
+      const match = permalink.match(/MLB-?(\d+)/i);
+      return {
+        id: match ? `MLB${match[1]}` : `web-${index}-${permalink}`,
+        title,
+        permalink,
+        price: amount(currentRoot),
+        original_price: amount(previousRoot),
+      };
+    }).filter((item) => item.title && item.permalink && item.price);
+  });
+
+  if (items.length === 0) {
+    throw new Error('A página pública não retornou produtos; pode haver bloqueio ou CAPTCHA.');
+  }
+  return items;
 }
 
 async function requestSearch(url, token = null) {
@@ -208,6 +274,9 @@ function stopMercadoLivrePublicSource() {
   if (timer) clearInterval(timer);
   timer = null;
   saveSeen();
+  if (webBrowser) webBrowser.close().catch(() => {});
+  webBrowser = null;
+  webPage = null;
 }
 
 module.exports = {
@@ -216,6 +285,7 @@ module.exports = {
   toPromo,
   selectEligiblePromos,
   getApplicationToken,
+  buildWebSearchUrl,
   startMercadoLivrePublicSource,
   stopMercadoLivrePublicSource,
 };
