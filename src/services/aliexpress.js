@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const { isQuietHour } = require('../utils/horario');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
 const { keepOnlyRealDeals } = require('./price-history');
@@ -251,6 +252,9 @@ async function fetchSearch(query) {
 }
 
 async function poll() {
+  // Durante o silencio nao coletamos: guardar oferta por nove horas so
+  // acumularia fila e entregaria promocao provavelmente expirada.
+  if (isQuietHour()) return;
   if (running || !config.aliexpressEnabled || config.aliexpressSearches.length === 0) return;
   running = true;
 

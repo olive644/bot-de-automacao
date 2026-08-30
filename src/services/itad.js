@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const { isQuietHour } = require('../utils/horario');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
 const { keepOnlyRealDeals } = require('./price-history');
@@ -65,6 +66,15 @@ function toPromo(item) {
   }
 
   if (!item?.id || !title || !url || !Number.isFinite(price) || !Number.isFinite(regular) || regular <= price || cut < config.itadMinDiscount) {
+    return null;
+  }
+
+  // Piso de preço cheio. Exigir mais avaliações na Steam não resolvia:
+  // medido, subir o mínimo de 100 para 2000 continuava trazendo "Clock
+  // Simulator" e "RUSSIAPHOBIA". O que separa jogo de verdade de
+  // shovelware é quanto ele custa inteiro — abaixo de algumas dezenas de
+  // reais, o desconto de 90% incide sobre um preço já simbólico.
+  if (regular < config.itadMinRegularPrice) {
     return null;
   }
 
@@ -159,6 +169,9 @@ async function fetchDeals() {
 }
 
 async function poll() {
+  // Durante o silencio nao coletamos: guardar oferta por nove horas so
+  // acumularia fila e entregaria promocao provavelmente expirada.
+  if (isQuietHour()) return;
   if (running || !config.itadEnabled || !config.itadApiKey) return;
   running = true;
   try {
