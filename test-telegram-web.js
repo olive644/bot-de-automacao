@@ -6,6 +6,7 @@ const {
   parseMessages,
   toPromo,
   readChannelTitle,
+  isChannelOwnLink,
 } = require('./src/services/telegram-web');
 
 // ---------- identificação do canal ----------
@@ -93,6 +94,30 @@ const soDivulgacao = parseMessages(`
 </div>
 `, 'LopesPromo');
 assert.equal(toPromo(soDivulgacao[0], 'Lopes'), null);
+
+// ---------- link do próprio canal ----------
+// O canal assina o post com o site dele: @tosemkit publica tosemkit.com.br
+// no rodapé. Nenhuma lista fixa daria conta, porque o domínio muda a cada
+// canal acrescentado; o nome do canal já basta.
+assert.equal(isChannelOwnLink('https://tosemkit.com.br/', 'tosemkit'), true);
+assert.equal(isChannelOwnLink('https://www.tosemkit.com.br/promo', 'tosemkit'), true);
+assert.equal(isChannelOwnLink('https://lopespromo.com.br', 'LopesPromo'), true);
+// O link do produto não pode ser confundido com o do canal.
+assert.equal(isChannelOwnLink('https://s.shopee.com.br/7Ad7AUzrqW', 'tosemkit'), false);
+// Nome curto casaria com domínio alheio por acidente.
+assert.equal(isChannelOwnLink('https://abc.com.br', 'abc'), false);
+assert.equal(isChannelOwnLink('nao-e-url', 'tosemkit'), false);
+
+// O caso real que chegou ao grupo: o post trazia o link da Shopee e, logo
+// abaixo, o do próprio canal — e os dois saíram na mensagem.
+const doPrint = parseMessages(`
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message" data-post="tosemkit/99">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">Processador AMD Ryzen 7 9700X<br/>Valor: R&#036;1.572<br/>https://s.shopee.com.br/7Ad7AUzrqW<br/>https://tosemkit.com.br/</div>
+  </div>
+</div>
+`, 'tosemkit');
+assert.deepEqual(toPromo(doPrint[0], 'TO SEM KIT').urls, ['https://s.shopee.com.br/7Ad7AUzrqW']);
 
 // Página sem mensagem nenhuma não quebra a leitura.
 assert.deepEqual(parseMessages('<html>vazio</html>', 'x'), []);

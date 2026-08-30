@@ -103,4 +103,17 @@ assert.equal(promo.sourceGroup, 'AliExpress');
 
 assert.equal(selectEligiblePromos(offers).length, 1);
 
+// ---------- anuncio com varias versoes e descartado ----------
+// O caso real: um SSD 128GB/256GB/512GB/1TB/2TB anunciado por R$ 201,97
+// tem a versao de 2TB a R$ 1.533,86. Avisar nao bastava, porque quem le
+// o valor em destaque nao vai conferir o anuncio.
+const multiVersao = card('1005010064016845', 'SSD Interno Great Wall M.2 NVME PCIe3.0 128GB 256GB 512GB 1TB 2TB', 504.60, 201.97);
+assert.equal(toOfferItem(multiVersao).multiVariant, true);
+assert.equal(toPromo(toOfferItem(multiVersao)), null);
+
+// Uma capacidade so no titulo continua passando.
+const umaVersao = toOfferItem(card('777', 'SSD NVMe 1TB Kingston NV2', 400, 160));
+assert.equal(umaVersao.multiVariant, false);
+assert.ok(toPromo(umaVersao));
+
 console.log('Coletor AliExpress: leitura da busca, moeda, filtros e preços válidos.');
