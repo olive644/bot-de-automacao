@@ -9,6 +9,7 @@ const { MessageMedia } = require('whatsapp-web.js');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { randomDelay, formatMs } = require('../utils/delay');
+const { downloadImage } = require('../utils/media');
 
 // Fila FIFO interna — armazena as promoções pendentes
 const queue = [];
@@ -47,7 +48,9 @@ function loadQueueFromDisk() {
       const discarded = data.length - allowed.length;
       logger.info(`[Fila] ${allowed.length} promoção(ões) restaurada(s) do backup.`);
       if (discarded > 0) logger.info(`[Fila] ${discarded} oferta(s) de jogos bloqueada(s) removida(s) do backup.`);
-      fs.unlinkSync(QUEUE_FILE);
+      // O arquivo não é apagado aqui: quem o mantém em dia agora é o
+      // saveQueueToDisk a cada mudança, e ele some sozinho quando a fila
+      // esvazia. Apagar aqui abriria uma janela de perda até o primeiro save.
     }
   } catch (error) {
     logger.warn(`[Fila] Erro ao carregar backup da fila:`, error.message);
@@ -55,14 +58,21 @@ function loadQueueFromDisk() {
 }
 
 /**
- * Salva fila no disco como backup (em caso de crash/restart).
+ * Salva a fila no disco. Chamado a cada mudança, não só no encerramento:
+ * com auto-restart, queda virou rotina, e antes disso toda queda dura
+ * levava embora as promoções pendentes sem deixar rastro.
+ *
+ * Fila vazia apaga o arquivo. Se ele ficasse para trás com conteúdo
+ * antigo, o próximo restart reenviaria promoções já entregues.
  */
 function saveQueueToDisk() {
   try {
-    if (queue.length > 0) {
-      fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2), 'utf-8');
-      logger.debug(`[Fila] ${queue.length} promoção(ões) salva(s) em backup.`);
+    if (queue.length === 0) {
+      if (fs.existsSync(QUEUE_FILE)) fs.unlinkSync(QUEUE_FILE);
+      return;
     }
+    fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2), 'utf-8');
+    logger.debug(`[Fila] ${queue.length} promoção(ões) salva(s) em backup.`);
   } catch (error) {
     logger.warn(`[Fila] Erro ao salvar backup da fila:`, error.message);
   }
@@ -91,6 +101,7 @@ function enqueue(promo) {
     return false;
   }
   queue.push(promo);
+  saveQueueToDisk();
   logger.info(`[Fila] Promoção adicionada. Tamanho da fila: ${queue.length}`);
   logger.debug(`[Fila] Detalhes:`, {
     title: promo.title,
@@ -189,6 +200,12 @@ async function sendPromo(client, promo, attempt = 1) {
     const typingTime = await randomDelay(config.typingDelayMin, config.typingDelayMax);
     logger.info(`[Fila] Aguardando ${formatMs(typingTime)} antes do envio...`);
 
+    // O listener já traz a imagem pronta em `media`. Os coletores guardam só
+    // a URL, e ela vira imagem agora, na hora do envio.
+    if (!promo.media && promo.imageUrl && config.sendProductImages) {
+      promo.media = await downloadImage(promo.imageUrl);
+    }
+
     if (promo.media?.data && promo.media?.mimetype) {
       try {
         const media = new MessageMedia(
@@ -257,6 +274,11 @@ async function startProcessing(client) {
       } catch (error) {
         logger.error(`[Fila] Erro ao enviar promoção:`, error.message);
         // Não re-adiciona na fila para evitar loop infinito de erros
+      } finally {
+        // Só grava depois de tentar o envio. Se o processo morrer no meio,
+        // a promoção continua no backup e é reenviada no restart. Preferimos
+        // arriscar uma repetição a perder a oferta em silêncio.
+        saveQueueToDisk();
       }
 
       // Delay aleatório entre mensagens (anti-banimento)

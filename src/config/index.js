@@ -36,6 +36,21 @@ const config = {
   // ID do grupo destino (para onde enviamos as promoções convertidas)
   destGroup: normalizeChatId(process.env.DEST_GROUP),
 
+  // Envia a foto do produto junto com a promoção dos coletores. A imagem é
+  // baixada na hora do envio, não na coleta.
+  sendProductImages: process.env.SEND_PRODUCT_IMAGES !== 'false',
+
+  // Histórico de preço: só publica oferta que chegue perto do menor valor
+  // que o bot já viu, em vez de confiar no "de:" anunciado pela plataforma.
+  priceHistoryEnabled: process.env.PRICE_HISTORY_ENABLED !== 'false',
+  // Margem sobre o menor preço já visto, em porcentagem.
+  priceHistoryTolerance: Math.min(100, Math.max(0, parseInt(process.env.PRICE_HISTORY_TOLERANCE, 10) || 5)),
+
+  // Autodiagnóstico: avisa quando uma fonte ligada para de entregar.
+  healthReportEnabled: process.env.HEALTH_REPORT_ENABLED !== 'false',
+  healthReportHours: Math.min(72, Math.max(1, parseInt(process.env.HEALTH_REPORT_HOURS, 10) || 6)),
+  healthWindowHours: Math.min(168, Math.max(1, parseInt(process.env.HEALTH_WINDOW_HOURS, 10) || 24)),
+
   // Telegram como fonte adicional, via bot criado no @BotFather.
   telegramEnabled: process.env.TELEGRAM_ENABLED === 'true',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',

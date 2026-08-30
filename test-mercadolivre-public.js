@@ -38,6 +38,8 @@ const state = {
           {
             card: {
               metadata: { id: 'MLB111', url: 'www.mercadolivre.com.br/monitor-gamer/p/MLB111' },
+              // O feed traz só o id da foto; a URL é montada a partir dele.
+              pictures: { pictures: [{ id: '808703-MLA99523580704_122025' }] },
               components: [
                 { type: 'title', title: { text: 'Monitor Gamer 24 Polegadas' } },
                 {
@@ -80,8 +82,11 @@ assert.deepEqual(offers[0], {
   permalink: 'https://www.mercadolivre.com.br/monitor-gamer/p/MLB111',
   price: 700,
   original_price: 1000,
+  imageUrl: 'https://http2.mlstatic.com/D_NQ_NP_2X_808703-MLA99523580704_122025-F.webp',
 });
 assert.equal(offers[1].original_price, null);
+// Card sem foto não pode inventar URL de imagem.
+assert.equal(offers[1].imageUrl, null);
 // Página sem o bloco de dados devolve null — diferente de lista vazia.
 assert.equal(readOffers('<html>sem estado</html>'), null);
 

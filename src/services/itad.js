@@ -8,6 +8,8 @@ const path = require('path');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
+const { keepOnlyRealDeals } = require('./price-history');
+const { recordCycle } = require('./health');
 
 const DEALS_URL = 'https://api.isthereanydeal.com/deals/v2';
 const SEEN_FILE = path.resolve(__dirname, '../../.itad_seen.json');
@@ -78,7 +80,9 @@ function toPromo(item) {
     prices: [originalPrice, currentPrice],
     originalPrice,
     currentPrice,
+    priceValue: price,
     media: null,
+    imageUrl: item?.assets?.banner600 || item?.assets?.banner400 || item?.assets?.boxart || null,
     rawText: `${title}\nLoja: ${shop}\nDe: ${originalPrice}\nPor: ${currentPrice}\n${url}`,
     sourceGroup: 'IsThereAnyDeal',
     receivedAt: new Date().toISOString(),
@@ -158,7 +162,7 @@ async function poll() {
       .map(toPromo)
       .filter((promo) => promo && !seen.has(seenKey(promo)));
 
-    const promos = prioritizeShops(eligiblePromos)
+    const promos = keepOnlyRealDeals(prioritizeShops(eligiblePromos), 'itad')
       .slice(0, config.itadMaxResults);
 
     for (const promo of promos) {
@@ -167,8 +171,10 @@ async function poll() {
       logger.info(`[ITAD] Oferta adicionada (${promo.discountPercent}% OFF): ${promo.title}`);
     }
     if (promos.length > 0) saveSeen();
+    recordCycle('ITAD', { read: eligiblePromos.length, added: promos.length });
     logger.info(`[ITAD] Consulta concluída: ${promos.length} novo(s) jogo(s) elegível(is).`);
   } catch (error) {
+    recordCycle('ITAD', { error: error.message });
     logger.warn('[ITAD] Falha na consulta de jogos:', error.message);
   } finally {
     running = false;
