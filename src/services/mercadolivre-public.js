@@ -116,6 +116,34 @@ function findComponent(card, type) {
 }
 
 /**
+ * Os textos do feed vêm como template com marcadores — "TNT Info {icon}",
+ * "{o} {price_total} {en} 10x {price} sem juros". Trocamos o que dá por
+ * valor e apagamos o resto, em vez de mandar chave crua para o grupo.
+ */
+function renderTemplate(bloco) {
+  if (!bloco || !bloco.text) return '';
+  let texto = String(bloco.text);
+  for (const valor of bloco.values || []) {
+    let substituto = '';
+    if (valor.type === 'label') substituto = valor.label?.text || '';
+    else if (valor.type === 'price') substituto = formatCurrency(Number(valor.price?.value));
+    else if (valor.type === 'pill') substituto = valor.pill?.text || '';
+    texto = texto.split(`{${valor.key}}`).join(substituto);
+  }
+  return texto.replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Cupom que o próprio anúncio oferece, no formato "R$ 159,62 com Cupom".
+ */
+function readCoupon(card) {
+  const promocoes = findComponent(card, 'promotions')?.promotions;
+  if (!Array.isArray(promocoes)) return null;
+  const cupom = promocoes.find((p) => p && p.type === 'coupon');
+  return cupom ? renderTemplate(cupom) : null;
+}
+
+/**
  * O preço anterior vem dentro de price_labels, marcado com `previous: true`.
  * Item sem preço anterior é item sem desconto declarado.
  */
@@ -143,6 +171,9 @@ function toOfferItem(entry) {
 
   // metadata.url vem sem protocolo e sem os parâmetros de rastreio.
   const permalink = metadata.url.startsWith('http') ? metadata.url : `https://${metadata.url}`;
+  const enviadoDe = renderTemplate(findComponent(card, 'shipped_from')?.shipped_from);
+  const internacional = !!findComponent(card, 'cbt');
+
   return {
     id: metadata.id,
     title,
@@ -150,7 +181,34 @@ function toOfferItem(entry) {
     price: Number(price.current_price?.value),
     original_price: readPreviousPrice(price),
     imageUrl: buildPictureUrl(card.pictures?.pictures?.[0]?.id),
+    seller: renderTemplate(findComponent(card, 'seller')?.seller) || null,
+    shipping: renderTemplate(findComponent(card, 'shipping_v2')?.shipping_v2?.[0]) || null,
+    installments: renderTemplate(price.installments) || null,
+    // "Disponível em 3 cores" — o aviso que evita anunciar uma versão e a
+    // pessoa achar que o preço vale para todas.
+    variants: findComponent(card, 'variations_text')?.variations_text?.text || null,
+    coupon: readCoupon(card),
+    origin: internacional || /china|exterior|internacional/i.test(enviadoDe) ? 'internacional' : 'nacional',
+    shippedFrom: enviadoDe || null,
+    rating: readRating(card),
+    sales: readSales(card),
   };
+}
+
+/**
+ * A avaliação e a quantidade vendida vêm juntas num texto só, do tipo
+ * "Classificação 4.9 de 5 estrelas. Mais de 500 produtos vendidos."
+ */
+function readRating(card) {
+  const alt = findComponent(card, 'review_compacted')?.review_compacted?.alt_text || '';
+  const nota = alt.match(/([\d,.]+)\s*de\s*5/i);
+  return nota ? nota[1].replace(',', '.') : null;
+}
+
+function readSales(card) {
+  const alt = findComponent(card, 'review_compacted')?.review_compacted?.alt_text || '';
+  const vendidos = alt.match(/((?:mais de\s*)?[\d.,]+\s*(?:mil\s*)?produtos vendidos)/i);
+  return vendidos ? vendidos[1].replace(/produtos vendidos/i, 'vendidos') : null;
 }
 
 /**
@@ -195,6 +253,21 @@ function toPromo(item) {
     priceValue: currentPrice,
     media: null,
     imageUrl: item.imageUrl || null,
+    store: 'Mercado Livre',
+    seller: item.seller || null,
+    shipping: item.shipping || null,
+    installments: item.installments || null,
+    variants: item.variants || null,
+    // O feed só oferece o preço da versão mais barata quando o anúncio tem
+    // variações, então o valor é um piso, não o preço de qualquer versão.
+    priceFromVariant: !!item.variants,
+    origin: item.origin || null,
+    taxNote: item.origin === 'internacional'
+      ? `Importado${item.shippedFrom ? ` — ${item.shippedFrom}` : ''}; pode ter imposto na entrada`
+      : null,
+    rating: item.rating || null,
+    sales: item.sales || null,
+    couponLines: item.coupon ? [item.coupon] : [],
     rawText: `${item.title}\nDe: ${formatCurrency(originalPrice)}\nPor: ${formatCurrency(currentPrice)}\n${item.permalink}`,
     sourceGroup: item.sourceGroup || 'Mercado Livre (ofertas do dia)',
     receivedAt: new Date().toISOString(),

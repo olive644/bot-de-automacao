@@ -40,6 +40,10 @@ const config = {
   // baixada na hora do envio, não na coleta.
   sendProductImages: process.env.SEND_PRODUCT_IMAGES !== 'false',
 
+  // So publica o que parece oferta de verdade. Vale para as fontes de
+  // texto livre; os coletores ja vem de feed de ofertas.
+  onlyRealOffers: process.env.ONLY_REAL_OFFERS !== 'false',
+
   // Marca d'água aplicada em toda imagem que vai para o grupo de destino,
   // venha ela dos coletores ou dos grupos de origem.
   watermarkEnabled: process.env.WATERMARK_ENABLED !== 'false',

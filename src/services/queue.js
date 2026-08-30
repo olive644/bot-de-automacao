@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 const { randomDelay, formatMs } = require('../utils/delay');
 const { downloadImage } = require('../utils/media');
 const { applyWatermark } = require('../utils/watermark');
+const { lojaDaPromocao } = require('../utils/plataforma');
 
 // Fila FIFO interna — armazena as promoções pendentes
 const queue = [];
@@ -145,25 +146,74 @@ function buildCouponBlock(promo) {
 }
 
 /**
+ * Cabeçalho: bandeira de origem, loja e vendedor.
+ * A bandeira só aparece quando a origem é conhecida — 🇧🇷 para produto que
+ * sai do Brasil, 🌎 para importado. Sem informação, nenhuma bandeira: dizer
+ * "nacional" no chute enganaria quem se importa com prazo e imposto.
+ */
+function buildHeader(promo) {
+  const loja = promo.store || lojaDaPromocao(promo);
+  const bandeira = promo.origin === 'nacional' ? '🇧🇷' : (promo.origin === 'internacional' ? '🌎' : '');
+  const partes = [loja ? `#${loja}` : null, promo.seller || null].filter(Boolean);
+
+  if (partes.length === 0) return bandeira ? `${bandeira} *OFERTA*` : '✨ *OFERTA ENCONTRADA*';
+  return `${bandeira ? bandeira + '  ' : ''}*${partes.join(' / ')}*`;
+}
+
+/**
+ * Bloco de preço. "A partir de" quando o anúncio cobre várias versões e o
+ * valor se refere à mais barata: dizer "R$ 215,14" seco num anúncio de SSD
+ * de 128GB a 2TB faria a pessoa esperar o de 2TB por esse preço.
+ */
+function buildPriceBlock(promo) {
+  const linhas = [];
+  const rotulo = promo.priceFromVariant ? 'A partir de' : 'Valor';
+
+  if (promo.originalPrice && promo.currentPrice && promo.originalPrice !== promo.currentPrice) {
+    linhas.push(`~De: ${promo.originalPrice}~`);
+    linhas.push(`💰🔥 *${rotulo}: ${promo.currentPrice}*`);
+  } else if (promo.currentPrice) {
+    linhas.push(`💰 *${rotulo}: ${promo.currentPrice}*`);
+  }
+
+  if (promo.discountPercent) linhas.push(`📉 ${promo.discountPercent}% de desconto`);
+  if (promo.installments) linhas.push(`💳 ${promo.installments}`);
+  if (promo.shipping) linhas.push(`🚚 ${promo.shipping}`);
+  if (promo.taxNote) linhas.push(`🧾 ${promo.taxNote}`);
+  return linhas;
+}
+
+/**
+ * Avisa quando o anúncio cobre mais de uma versão do produto. Sem isso, um
+ * título tipo "SSD 128GB 256GB 512GB 1TB" não deixa saber qual está em oferta.
+ */
+function buildVariantNote(promo) {
+  if (!promo.variants) return [];
+  return [`⚠️ ${promo.variants} — confira a versão no anúncio`];
+}
+
+function buildReputationLine(promo) {
+  const partes = [promo.rating ? `⭐ ${promo.rating}` : null, promo.sales || null].filter(Boolean);
+  return partes.length > 0 ? [partes.join('  ·  ')] : [];
+}
+
+/**
  * Formata a mensagem de promoção para envio no grupo destino.
- * Personaliza o formato conforme desejar.
  *
  * @param {object} promo - Objeto da promoção
  * @returns {string} - Mensagem formatada
  */
 function formatMessage(promo) {
-  const parts = ['✨ *OFERTA ENCONTRADA*'];
+  const parts = [buildHeader(promo)];
 
   if (promo.title) {
     parts.push(`\n*${promo.title}*`);
   }
 
-  if (promo.originalPrice && promo.currentPrice && promo.originalPrice !== promo.currentPrice) {
-    parts.push(`~De: ${promo.originalPrice}~`);
-    parts.push(`🔥 *Por: ${promo.currentPrice}*`);
-  } else if (promo.currentPrice) {
-    parts.push(`💰 *Preço: ${promo.currentPrice}*`);
-  }
+  parts.push('');
+  parts.push(...buildPriceBlock(promo));
+  parts.push(...buildVariantNote(promo));
+  parts.push(...buildReputationLine(promo));
 
   const couponBlock = buildCouponBlock(promo);
   if (couponBlock.length > 0) {
@@ -172,10 +222,14 @@ function formatMessage(promo) {
   }
 
   if (promo.urls && promo.urls.length > 0) {
-    parts.push(`\n${promo.urls.map((url) => `🔗 ${url}`).join('\n')}`);
+    parts.push('');
+    parts.push('✅ *Link do produto*');
+    parts.push(...promo.urls.map((url) => `🔗 ${url}`));
   }
 
-  return parts.join('\n');
+  // Junta e limpa linhas em branco duplicadas, que aparecem quando um
+  // bloco inteiro fica vazio por falta de dado.
+  return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -340,5 +394,7 @@ module.exports = {
   saveBeforeExit,
   formatMessage,
   buildCouponBlock,
+  buildHeader,
+  buildPriceBlock,
   isBlockedPromotion,
 };

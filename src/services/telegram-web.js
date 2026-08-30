@@ -16,6 +16,7 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { extractPromoInfo } = require('../utils/regex');
 const { enqueue } = require('./queue');
+const { looksLikeOffer } = require('../utils/promocao');
 const { recordCycle } = require('./health');
 
 const PREVIEW_URL = 'https://t.me/s/{canal}';
@@ -120,7 +121,7 @@ function toPromo(message, channelTitle) {
   // Sem link de produto não há oferta — mesmo que o post tivesse links.
   if (urls.length === 0) return null;
 
-  return {
+  const promo = {
     id: message.id,
     title: info.title || 'Confira esta oferta',
     urls,
@@ -135,6 +136,9 @@ function toPromo(message, channelTitle) {
     sourceGroup: `Telegram: ${channelTitle || '@' + message.channel}`,
     receivedAt: new Date().toISOString(),
   };
+
+  // Recado de canal com link nao e oferta.
+  return looksLikeOffer(promo) ? promo : null;
 }
 
 function readChannelTitle(html) {

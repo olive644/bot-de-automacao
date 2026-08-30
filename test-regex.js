@@ -121,11 +121,14 @@ testMessages.forEach((test, idx) => {
       assert.ok(formatted.includes(url), `Link original ausente da mensagem: ${url}`);
     });
     assert.doesNotMatch(formatted, /Enviado por|Oli\s*-?\s*Bot/i, 'A mensagem não deve conter assinatura automática');
+    // O rótulo é "Valor" nos dois casos; o que muda é a linha riscada com
+    // o preço anterior, que só aparece quando ele existe.
     if (test.expectedOriginal) {
       assert.ok(formatted.includes(`~De: ${test.expectedOriginal}~`));
-      assert.ok(formatted.includes(`*Por: ${test.expectedCurrent}*`));
+      assert.ok(formatted.includes(`*Valor: ${test.expectedCurrent}*`));
     } else if (test.expectedCurrent) {
-      assert.ok(formatted.includes(`*Preço: ${test.expectedCurrent}*`));
+      assert.ok(formatted.includes(`*Valor: ${test.expectedCurrent}*`));
+      assert.ok(!formatted.includes('~De:'), 'sem preço anterior não pode haver linha riscada');
     }
     if (test.expectedCoupons) {
       // O código sai sozinho, em monoespaçado, para a pessoa copiar.

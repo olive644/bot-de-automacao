@@ -121,6 +121,11 @@ function toOfferItem(entry) {
   const current = readPrice(prices.salePrice);
   if (original === null || current === null) return null;
 
+  // O selo local_flag marca produto que sai de armazém no Brasil. Sem ele,
+  // o pedido vem do exterior e pode pegar imposto na entrada.
+  const selos = (entry?.sellingPoints || []).map((s) => String(s?.source || ''));
+  const nacional = selos.includes('local_flag');
+
   return {
     id: String(id),
     title: String(title).trim(),
@@ -129,7 +134,24 @@ function toOfferItem(entry) {
     original_price: original,
     // imgUrl vem sem protocolo, no formato "//host/caminho.jpg".
     imageUrl: entry?.image?.imgUrl || null,
+    rating: entry?.evaluation?.starRating ? String(entry.evaluation.starRating) : null,
+    sales: entry?.trade?.tradeDesc ? String(entry.trade.tradeDesc).replace(/\s+/g, ' ').trim() : null,
+    origin: nacional ? 'nacional' : 'internacional',
+    taxRate: prices.taxRate !== undefined ? String(prices.taxRate) : null,
+    // Anúncio que lista várias capacidades ou tamanhos no título: o preço
+    // do feed é o da versão mais barata, não o de qualquer uma.
+    multiVariant: hasMultipleVariants(String(title)),
   };
+}
+
+// Título tipo "SSD 128GB 256GB 512GB 1TB" ou "DDR4 8GB 16GB 32GB": duas ou
+// mais capacidades enfileiradas indicam anúncio com versões diferentes.
+const CAPACIDADE = /\b\d+\s?(?:gb|tb|mb)\b/gi;
+
+function hasMultipleVariants(title) {
+  const capacidades = String(title).match(CAPACIDADE) || [];
+  const distintas = new Set(capacidades.map((c) => c.toLowerCase().replace(/\s+/g, '')));
+  return distintas.size >= 2;
 }
 
 function readOffers(html) {
@@ -158,6 +180,17 @@ function toPromo(item) {
     priceValue: currentPrice,
     media: null,
     imageUrl: item.imageUrl || null,
+    store: 'AliExpress',
+    // O card da busca não expõe o nome da loja; melhor omitir do que supor.
+    seller: null,
+    origin: item.origin || null,
+    taxNote: item.origin === 'nacional'
+      ? 'Sai de estoque no Brasil, sem imposto de importação'
+      : 'Importado; pode ter imposto na entrada',
+    variants: item.multiVariant ? 'O anúncio tem versões com preços diferentes' : null,
+    priceFromVariant: !!item.multiVariant,
+    rating: item.rating || null,
+    sales: item.sales || null,
     rawText: `${item.title}\nDe: ${formatCurrency(originalPrice)}\nPor: ${formatCurrency(currentPrice)}\n${item.permalink}`,
     sourceGroup: 'AliExpress',
     receivedAt: new Date().toISOString(),
