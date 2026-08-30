@@ -22,6 +22,15 @@ const config = {
     : path.resolve(__dirname, '../../assets/oli-bot.png'),
   applyBotProfile: process.env.APPLY_BOT_PROFILE !== 'false',
 
+  // Catálogo público do Mercado Livre — não requer OAuth ou tokens.
+  mercadoLivrePublicEnabled: process.env.ML_PUBLIC_ENABLED === 'true',
+  mercadoLivreSearches: process.env.ML_PUBLIC_SEARCHES
+    ? process.env.ML_PUBLIC_SEARCHES.split(',').map((query) => query.trim()).filter(Boolean)
+    : [],
+  mercadoLivrePollMinutes: Math.max(15, parseInt(process.env.ML_PUBLIC_POLL_MINUTES, 10) || 60),
+  mercadoLivreMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ML_PUBLIC_MIN_DISCOUNT, 10) || 20)),
+  mercadoLivreMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_RESULTS, 10) || 3)),
+
   // Delays entre mensagens na fila (anti-banimento)
   queueDelayMin: parseInt(process.env.QUEUE_DELAY_MIN, 10) || 120000,  // 2 min
   queueDelayMax: parseInt(process.env.QUEUE_DELAY_MAX, 10) || 300000,  // 5 min

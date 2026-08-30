@@ -17,6 +17,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Detecção de duplicatas** — evita repostar a mesma promoção  
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
+✅ **Mercado Livre público (opcional)** — busca ofertas sem token, chave ou OAuth
 
 ---
 
@@ -101,6 +102,13 @@ QUEUE_CHECK_INTERVAL=30000  # 30 segundos
 
 # Nível de log
 LOG_LEVEL=INFO  # DEBUG, INFO, WARN, ERROR
+
+# Busca pública no Mercado Livre (sem token)
+ML_PUBLIC_ENABLED=true
+ML_PUBLIC_SEARCHES=jogos ps5,jogos nintendo switch,ssd nvme
+ML_PUBLIC_POLL_MINUTES=60
+ML_PUBLIC_MIN_DISCOUNT=20
+ML_PUBLIC_MAX_RESULTS=3
 ```
 
 ### 5️⃣ Iniciar o Bot
@@ -224,21 +232,21 @@ O nome e a foto são aplicados à conta do WhatsApp conectada. Contatos que já 
 
 ---
 
-## 🔐 Autorizar o Mercado Livre
+## 🛒 Busca pública do Mercado Livre
 
-O Mercado Livre exige uma URL de redirecionamento com HTTPS. Publique este repositório na Vercel; a rota `api/mercadolivre/callback` não recebe nem armazena tokens. No painel da aplicação Mercado Livre, cadastre a URL abaixo. Ela precisa ser idêntica à do `.env`:
+O Oli - Bot pode consultar o catálogo público do Mercado Livre e enviar somente itens que possuam preço anterior maior que o preço atual. Isso não requer token, chave, conta vendedora, OAuth ou Vercel.
+
+No seu `.env`, ative e escolha os termos que interessam ao seu grupo:
 
 ```env
-ML_REDIRECT_URI=https://seu-projeto.vercel.app/api/mercadolivre/callback
+ML_PUBLIC_ENABLED=true
+ML_PUBLIC_SEARCHES=jogos ps5,jogos xbox,ssd nvme,placa de video
+ML_PUBLIC_POLL_MINUTES=60
+ML_PUBLIC_MIN_DISCOUNT=20
+ML_PUBLIC_MAX_RESULTS=3
 ```
 
-Depois, no seu computador, execute:
-
-```bash
-npm run auth:mercadolivre
-```
-
-Autorize a conta no navegador. Ao chegar na página da Vercel, copie a URL completa do navegador e cole no terminal. A Vercel recebe apenas o código temporário de autorização; o bot troca esse código localmente e grava os tokens e sua validade diretamente no `.env`. Tokens e segredos não são enviados à Vercel nem ao GitHub.
+O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Use buscas específicas; não configure apenas `jogos`, pois isso tende a trazer ofertas pouco relevantes.
 
 ---
 

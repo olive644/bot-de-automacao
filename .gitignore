@@ -4,4 +4,4 @@ node_modules/
 .wwebjs_cache*/
 *.log
 qrcode.png
-
+.mercadolivre_seen.json

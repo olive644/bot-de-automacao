@@ -14,6 +14,7 @@ const client = require('./src/services/whatsapp');
 const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
 const { configureBotProfile } = require('./src/services/profile');
+const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require('./src/services/mercadolivre-public');
 const logger = require('./src/utils/logger');
 
 // --- Validação mínima de configuração ---
@@ -24,6 +25,9 @@ function validateConfig() {
   }
   if (!config.destGroup) {
     logger.warn('DEST_GROUP não configurado no .env — o bot não vai enviar promoções.');
+  }
+  if (config.mercadoLivrePublicEnabled && config.mercadoLivreSearches.length === 0) {
+    logger.warn('ML_PUBLIC_ENABLED está ativo, mas ML_PUBLIC_SEARCHES não possui termos para pesquisar.');
   }
 }
 
@@ -43,12 +47,16 @@ client.once('ready', async () => {
 
   // Inicia o processador de fila (roda em loop contínuo)
   startProcessing(client);
+
+  // Consulta o catálogo público; não depende de token, OAuth ou conta vendedora.
+  startMercadoLivrePublicSource();
 });
 
 // --- Graceful shutdown (Ctrl+C) ---
 process.on('SIGINT', async () => {
   logger.info('Encerrando bot...');
   stopProcessing();
+  stopMercadoLivrePublicSource();
   saveBeforeExit();
 
   try {

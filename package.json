@@ -15,7 +15,8 @@
     "list-groups": "node src/scripts/list-groups.js",
     "test:regex": "node test-regex.js",
     "test:auth": "node test-mercadolivre-auth.js",
-    "test": "npm run test:regex && npm run test:auth",
+    "test:mercadolivre": "node test-mercadolivre-public.js",
+    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre",
     "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
     "dev": "node --watch index.js"
   },
