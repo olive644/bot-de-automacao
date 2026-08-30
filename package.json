@@ -14,6 +14,9 @@
     "web-auth": "echo '🌐 Abrindo http://localhost:3000 no navegador...' && node web-setup.js",
     "list-groups": "node src/scripts/list-groups.js",
     "test:regex": "node test-regex.js",
+    "test:auth": "node test-mercadolivre-auth.js",
+    "test": "npm run test:regex && npm run test:auth",
+    "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
     "dev": "node --watch index.js"
   },
   "keywords": [],

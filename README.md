@@ -224,6 +224,24 @@ O nome e a foto são aplicados à conta do WhatsApp conectada. Contatos que já 
 
 ---
 
+## 🔐 Autorizar o Mercado Livre
+
+Configure no `.env` o `ML_CLIENT_ID`, `ML_CLIENT_SECRET` e uma URL de redirecionamento idêntica à cadastrada na aplicação:
+
+```env
+ML_REDIRECT_URI=http://localhost:3000/auth/mercadolivre/callback
+```
+
+Com o bot parado, execute:
+
+```bash
+npm run auth:mercadolivre
+```
+
+Autorize a conta no navegador. O callback local grava os tokens e sua validade diretamente no `.env`; os valores não são exibidos no terminal nem enviados ao GitHub.
+
+---
+
 ## 💾 Persistência e Recuperação
 
 Se o bot desligar enquanto há promoções na fila:
