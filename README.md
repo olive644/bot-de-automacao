@@ -17,6 +17,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
 ✅ **Telegram como fonte (opcional)** — grupos e canais via bot do @BotFather
+✅ **AliExpress (opcional)** — busca por palavra, sem chave e sem navegador
 ✅ **Cupom em destaque** — o código sai sozinho, pronto para copiar
 ✅ **Mercado Livre (opcional)** — Ofertas do Dia sem token, chave, OAuth ou navegador
 ✅ **ITAD para jogos de PC (opcional)** — Steam, GOG e lojas parceiras com desconto real
@@ -273,6 +274,46 @@ Quando a promoção de origem traz um código de cupom, ele sai sozinho, em mono
 A condição de uso vem abaixo, com `↳`, e só quando diz algo além do próprio código — "Use o cupom: JOGA20" some, porque o código já está em destaque. Quando a origem menciona cupom sem informar código ("Cupom de R$ 50 na primeira compra"), a linha é repassada inteira.
 
 O código precisa parecer código: alfanumérico em caixa alta, com pelo menos três caracteres. É isso que impede o bot de anunciar `de` ou `RESGATE` como se fosse cupom.
+
+---
+
+## 🧧 AliExpress
+
+O bot lê a busca pública de `pt.aliexpress.com`, que embute o resultado em JSON na própria página. Sem chave, sem conta de afiliado e sem navegador.
+
+Aqui a **busca por palavra continua aberta** — cada termo do `.env` vira uma consulta de verdade, com 60 produtos por página:
+
+```env
+ALIEXPRESS_ENABLED=true
+ALIEXPRESS_SEARCHES=placa de video,ssd nvme,teclado mecanico,fone bluetooth,controle xbox
+ALIEXPRESS_POLL_MINUTES=60
+ALIEXPRESS_MIN_DISCOUNT=30
+ALIEXPRESS_MAX_RESULTS=3
+ALIEXPRESS_MAX_PER_SEARCH=1
+```
+
+O coletor alterna a ordem dos termos a cada ciclo, espaça as consultas em 2 segundos e prioriza o maior desconto. Falha em um termo não derruba o ciclo inteiro.
+
+**Só aceita preço em reais.** O AliExpress às vezes devolve outra moeda dependendo de como identifica a origem da conexão; anunciar dólar num grupo brasileiro seria enganoso, então esses itens são descartados em silêncio.
+
+Suba o `ALIEXPRESS_MIN_DISCOUNT` se vier ruído: o AliExpress vive em promoção e 30% é um piso baixo por lá.
+
+---
+
+## 🛑 Shopee: por que não está aqui
+
+Shopee foi testada e **não dá para coletar automaticamente**. Não é falta de implementação:
+
+| Caminho | Resultado |
+| --- | --- |
+| `shopee.com.br/api/v4/search/search_items` | `403` com erro anti-robô `90309999` |
+| `shopee.com.br/api/v4/recommend` e `/flash_sale` | mesmo `403` |
+| HTML da busca, do início e do daily discover | as três URLs devolvem a mesma casca de SPA, sem nenhum produto |
+| Navegador real, com user-agent e idioma de gente | redireciona para `/verify/traffic/error` — "Página indisponível. Faça login e tente novamente" |
+
+O caminho legítimo seria o **Programa de Afiliados da Shopee**, que dá acesso a um feed oficial de ofertas mediante cadastro e aprovação. Com as credenciais em mãos, dá para escrever o coletor.
+
+Vale lembrar: se algum grupo de origem no WhatsApp ou no Telegram publica links da Shopee, essas promoções **já chegam ao grupo de destino** pelo listener, como qualquer outra.
 
 ---
 

@@ -58,6 +58,14 @@ const config = {
   // termo exige login no Mercado Livre e por isso deixou de ser usada.
   mercadoLivreLegacySearches: parseTextList(process.env.ML_PUBLIC_SEARCHES),
 
+  // AliExpress — busca pública por palavra, sem chave nem navegador.
+  aliexpressEnabled: process.env.ALIEXPRESS_ENABLED === 'true',
+  aliexpressSearches: parseTextList(process.env.ALIEXPRESS_SEARCHES),
+  aliexpressPollMinutes: Math.max(15, parseInt(process.env.ALIEXPRESS_POLL_MINUTES, 10) || 60),
+  aliexpressMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ALIEXPRESS_MIN_DISCOUNT, 10) || 30)),
+  aliexpressMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ALIEXPRESS_MAX_RESULTS, 10) || 3)),
+  aliexpressMaxPerSearch: Math.min(5, Math.max(1, parseInt(process.env.ALIEXPRESS_MAX_PER_SEARCH, 10) || 1)),
+
   // IsThereAnyDeal (ITAD) — promoções de jogos de PC.
   itadEnabled: process.env.ITAD_ENABLED === 'true',
   itadApiKey: process.env.ITAD_API_KEY || process.env.IS_THERE_ANY_DEAL_API_KEY || '',
