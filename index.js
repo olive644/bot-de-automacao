@@ -15,6 +15,7 @@ const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
 const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require('./src/services/mercadolivre-public');
 const { startItadSource, stopItadSource } = require('./src/services/itad');
+const { startAliexpressSource, stopAliexpressSource } = require('./src/services/aliexpress');
 const { startTelegramSource, stopTelegramSource } = require('./src/services/telegram');
 const logger = require('./src/utils/logger');
 
@@ -36,6 +37,9 @@ function validateConfig() {
   if (config.mercadoLivreLegacySearches.length > 0) {
     logger.warn('ML_PUBLIC_SEARCHES não é mais usado: a busca por termo passou a exigir login no Mercado Livre.');
     logger.warn('Troque por ML_PUBLIC_CATEGORIES (categorias das ofertas do dia) e, se quiser filtrar, ML_PUBLIC_KEYWORDS.');
+  }
+  if (config.aliexpressEnabled && config.aliexpressSearches.length === 0) {
+    logger.warn('ALIEXPRESS_ENABLED está ativo, mas ALIEXPRESS_SEARCHES não possui termos para pesquisar.');
   }
   if (config.telegramEnabled && !config.telegramBotToken) {
     logger.warn('TELEGRAM_ENABLED está ativo, mas TELEGRAM_BOT_TOKEN não foi configurado no .env.');
@@ -67,6 +71,7 @@ client.once('ready', async () => {
   // Consulta o catálogo público; não depende de token, OAuth ou conta vendedora.
   startMercadoLivrePublicSource();
   startItadSource();
+  startAliexpressSource();
 
   // O Telegram não depende do WhatsApp Web: basta a fila estar rodando.
   startTelegramSource();
@@ -78,6 +83,7 @@ process.on('SIGINT', async () => {
   stopProcessing();
   stopMercadoLivrePublicSource();
   stopItadSource();
+  stopAliexpressSource();
   stopTelegramSource();
   saveBeforeExit();
 
