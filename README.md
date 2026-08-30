@@ -255,6 +255,18 @@ Com `ML_WEB_FALLBACK_ENABLED=true` (padrão), o bot usa diretamente a página p�
 
 No Windows, o bot procura automaticamente Google Chrome e Microsoft Edge instalados. Se o log informar que nenhum navegador foi encontrado, execute uma vez `npm run install:browser` e reinicie o bot.
 
+Se a página pública também responder com bloqueio ou CAPTCHA, use a integração opcional com a API gerenciada da Parse.bot:
+
+1. Crie uma chave gratuita na [API MercadoLibre da Parse.bot](https://parse.bot/marketplace/d86a68fb-f0c5-45b9-8fde-599ae8e726ea/mercadolibre-com-api).
+2. Coloque a chave somente no `.env` local:
+
+```env
+ML_PARSE_API_KEY=sua_chave_aqui
+ML_PUBLIC_POLL_MINUTES=240
+```
+
+O coletor fará uma busca por ciclo e alternará os termos configurados. Com intervalo de quatro horas, são cerca de 180 consultas mensais, dentro dos 200 créditos do plano gratuito informados pelo serviço. Essa API é um serviço independente, não oficial do Mercado Livre; sem ela, a coleta automática ainda pode ser impedida pelo bloqueio da API oficial e da página pública.
+
 Se a API responder `401` ou `403`, o bot pode tentar automaticamente a credencial da própria aplicação, sem login de usuário. Gere uma chave nova no painel do Mercado Livre e mantenha-a apenas no `.env` local:
 
 ```env

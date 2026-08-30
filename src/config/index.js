@@ -42,6 +42,9 @@ const config = {
   // catálogo. Por isso o navegador público é o modo padrão; só é desligado
   // quando a variável for explicitamente `false`.
   mercadoLivreWebFallbackEnabled: process.env.ML_WEB_FALLBACK_ENABLED !== 'false',
+  // API gerenciada opcional para quando o Mercado Livre bloquear API e página.
+  // A chave deve ficar somente no .env local.
+  mercadoLivreParseApiKey: process.env.ML_PARSE_API_KEY || process.env.PARSE_API_KEY || '',
   // Fallback opcional para bloqueios 401/403 do catálogo público.
   mercadoLivreClientId: process.env.ML_CLIENT_ID || '',
   mercadoLivreClientSecret: process.env.ML_CLIENT_SECRET || '',
