@@ -76,8 +76,12 @@ function log(level, message, data) {
 
 function safeStringify(data) {
   if (typeof data === 'string') return data;
+  // JSON.stringify de um Error devolve "{}" e joga fora justamente a
+  // mensagem e o stack, que sao a unica coisa util quando algo quebra.
+  if (data instanceof Error) return data.stack || `${data.name}: ${data.message}`;
   try {
-    return JSON.stringify(data);
+    const json = JSON.stringify(data);
+    return json === undefined ? String(data) : json;
   } catch (_) {
     return String(data);
   }

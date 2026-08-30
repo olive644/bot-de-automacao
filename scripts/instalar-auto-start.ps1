@@ -56,5 +56,5 @@ Write-Host 'Para iniciar agora, sem esperar o proximo logon:'
 Write-Host "  Start-ScheduledTask -TaskName $nomeTarefa" -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'Para acompanhar:'
-Write-Host "  Get-Content logs\bot.log -Tail 30 -Wait" -ForegroundColor Cyan
+Write-Host "  Get-Content logs\bot.log -Encoding UTF8 -Tail 30 -Wait" -ForegroundColor Cyan
 Write-Host ''

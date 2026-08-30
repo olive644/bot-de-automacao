@@ -371,8 +371,10 @@ powershell -Command "Start-ScheduledTask -TaskName OliBot"
 Uma janela de console abre com a saída do bot — é nela que o QR Code aparece na primeira execução. Tudo também é gravado em `logs/bot.log`, com rotação a cada 10 MB:
 
 ```bash
-powershell -Command "Get-Content logs\bot.log -Tail 30 -Wait"
+powershell -Command "Get-Content logs\bot.log -Encoding UTF8 -Tail 30 -Wait"
 ```
+
+O `-Encoding UTF8` não é enfeite: sem ele o PowerShell 5.1 lê o arquivo na codepage ANSI e os acentos saem embaralhados.
 
 Para desfazer, sem apagar nada do projeto nem a sessão do WhatsApp:
 

@@ -34,6 +34,10 @@ if !SIZE! GTR 10485760 (
   move /y "%LOG%" "%LOG%.1" >nul
 )
 
+rem Sem esta limpeza, um Chrome sobrevivente da queda anterior segura a
+rem pasta .wwebjs_auth e todas as proximas tentativas falham em sequencia.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0limpar-chrome-orfao.ps1"
+
 echo.
 echo ==================================================
 echo [%date% %time%] subindo o bot
