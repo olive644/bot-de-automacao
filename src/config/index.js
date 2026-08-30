@@ -58,6 +58,24 @@ const config = {
   telegramSourceChats: parseTextList(process.env.TELEGRAM_SOURCE_CHATS),
   telegramSendImages: process.env.TELEGRAM_SEND_IMAGES !== 'false',
 
+  // Canais públicos do Telegram lidos pela prévia web de t.me/s/<canal>.
+  // Não exige bot dentro do canal nem permissão de administrador — serve
+  // para quem só acompanha canais de promoção sem ser dono deles.
+  telegramWebEnabled: process.env.TELEGRAM_WEB_ENABLED === 'true',
+  telegramWebChannels: parseTextList(process.env.TELEGRAM_WEB_CHANNELS),
+  // Padrões contidos de propósito. A fila envia uma promoção a cada 2 a 5
+  // minutos, ou seja, escoa perto de 17 por hora. Três canais a cada 15
+  // minutos, com 2 posts cada, produziriam 24 por hora só de Telegram — a
+  // fila cresceria sem parar e as ofertas chegariam velhas ao grupo.
+  telegramWebPollMinutes: Math.max(5, parseInt(process.env.TELEGRAM_WEB_POLL_MINUTES, 10) || 30),
+  telegramWebMaxPerChannel: Math.min(10, Math.max(1, parseInt(process.env.TELEGRAM_WEB_MAX_PER_CHANNEL, 10) || 1)),
+  // Domínios de divulgação que canais assinam em quase todo post. Não são a
+  // oferta, e repassá-los manda gente para fora do grupo de destino.
+  promoLinkBlocklist: parseTextList(
+    process.env.PROMO_LINK_BLOCKLIST,
+    'beacons.ai,linktr.ee,linktree.com,chat.whatsapp.com,t.me/joinchat'
+  ),
+
   // Ofertas do Dia do Mercado Livre — não requer OAuth, token ou navegador.
   mercadoLivrePublicEnabled: process.env.ML_PUBLIC_ENABLED === 'true',
   // IDs de categoria do feed de ofertas. Games e Informática por padrão.

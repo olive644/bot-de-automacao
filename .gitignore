@@ -12,3 +12,4 @@ logs/
 .aliexpress_seen.json
 .price_history.json
 .health.json
+.telegram_web_seen.json
