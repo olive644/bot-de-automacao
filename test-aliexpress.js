@@ -29,14 +29,17 @@ function card(id, titulo, original, atual, moeda = 'BRL') {
   };
 }
 
-assert.deepEqual(toOfferItem(card('1005010368393943', 'Placa de vídeo RX580', 1075.44, 677.52)), {
-  id: '1005010368393943',
-  title: 'Placa de vídeo RX580',
-  permalink: 'https://pt.aliexpress.com/item/1005010368393943.html',
-  price: 677.52,
-  original_price: 1075.44,
-  imageUrl: null,
-});
+const base = toOfferItem(card('1005010368393943', 'Placa de vídeo RX580', 1075.44, 677.52));
+assert.equal(base.id, '1005010368393943');
+assert.equal(base.title, 'Placa de vídeo RX580');
+assert.equal(base.permalink, 'https://pt.aliexpress.com/item/1005010368393943.html');
+assert.equal(base.price, 677.52);
+assert.equal(base.original_price, 1075.44);
+assert.equal(base.imageUrl, null);
+// Sem o selo local_flag, o pedido vem de fora e pode pegar imposto.
+assert.equal(base.origin, 'internacional');
+// Titulo com uma capacidade so: nao e anuncio de varias versoes.
+assert.equal(base.multiVariant, false);
 
 // A imgUrl do AliExpress vem sem protocolo; quem normaliza é o utilitário
 // de mídia, na hora do envio.

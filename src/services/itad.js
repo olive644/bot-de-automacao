@@ -75,13 +75,17 @@ function toPromo(item) {
 
   return {
     id: item.id,
-    title: `${title} — ${shop}`,
+    title,
     urls: [url],
     prices: [originalPrice, currentPrice],
     originalPrice,
     currentPrice,
     priceValue: price,
     media: null,
+    store: shop || 'IsThereAnyDeal',
+    origin: null,
+    rating: null,
+    sales: null,
     imageUrl: item?.assets?.banner600 || item?.assets?.banner400 || item?.assets?.boxart || null,
     rawText: `${title}\nLoja: ${shop}\nDe: ${originalPrice}\nPor: ${currentPrice}\n${url}`,
     sourceGroup: 'IsThereAnyDeal',

@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const { extractPromoInfo } = require('../utils/regex');
 const { normalizeChatId } = require('../utils/chat-id');
 const { enqueue } = require('./queue');
+const { looksLikeOffer } = require('../utils/promocao');
 
 // Rastrear hashes de mensagens já processadas (últimos 30 min) — evitar duplicatas
 const processedHashes = new Map();
@@ -123,6 +124,11 @@ async function processMessage(message, sourceName, sourceId, text) {
     sourceGroup: sourceName,
     receivedAt: new Date().toISOString(),
   };
+
+  if (!looksLikeOffer(promo)) {
+    logger.debug('[Listener] Mensagem com link mas sem preco nem cupom — ignorando.');
+    return;
+  }
 
   enqueue(promo);
 }

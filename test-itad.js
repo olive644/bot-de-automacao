@@ -14,7 +14,10 @@ const promo = toPromo({
     url: 'https://store.steampowered.com/app/123',
   },
 });
-assert.equal(promo.title, 'Jogo de teste — Steam');
+// A loja saiu do titulo: agora aparece no cabecalho da mensagem, via
+// o campo store, e o titulo fica so com o nome do jogo.
+assert.equal(promo.title, 'Jogo de teste');
+assert.equal(promo.store, 'Steam');
 assert.equal(promo.originalPrice, 'R$ 79,99');
 assert.equal(promo.currentPrice, 'R$ 19,99');
 assert.equal(promo.preferredShop, true);

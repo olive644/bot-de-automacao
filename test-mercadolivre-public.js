@@ -1,4 +1,8 @@
 const assert = require('node:assert/strict');
+
+// O Intl separa "R$" do valor com espaco nao separavel. Normalizar aqui
+// deixa as asercoes legiveis sem escapes no meio do texto.
+const semNbsp = (texto) => String(texto).replace(/\u00A0/g, " ");
 const {
   formatCurrency,
   getDiscountPercent,
@@ -47,8 +51,19 @@ const state = {
                   price: {
                     current_price: { value: 700 },
                     price_labels: [{ values: [{ type: 'price', price: { value: 1000, previous: true } }] }],
+                    installments: { text: '10x {price} sem juros', values: [{ key: 'price', type: 'price', price: { value: 70 } }] },
                   },
                 },
+                // Os textos do feed vêm como template com marcadores; o
+                // ícone não tem valor e precisa sumir, não virar "{icon}".
+                { type: 'seller', seller: { text: 'TNT Info {icon_cockade}', values: [] } },
+                { type: 'shipping_v2', shipping_v2: [{ text: 'Frete grátis' }] },
+                { type: 'variations_text', variations_text: { text: 'Disponível em 3 cores' } },
+                {
+                  type: 'promotions',
+                  promotions: [{ type: 'coupon', text: '{1} com Cupom', values: [{ key: '1', type: 'price', price: { value: 159.62 } }] }],
+                },
+                { type: 'review_compacted', review_compacted: { alt_text: 'Classificação 4,9 de 5 estrelas. Mais de 500 produtos vendidos.' } },
               ],
             },
           },
@@ -76,16 +91,28 @@ assert.equal(extractOffersState('<html>sem estado</html>'), null);
 
 const offers = readOffers(html);
 assert.equal(offers.length, 2);
-assert.deepEqual(offers[0], {
-  id: 'MLB111',
-  title: 'Monitor Gamer 24 Polegadas',
-  permalink: 'https://www.mercadolivre.com.br/monitor-gamer/p/MLB111',
-  price: 700,
-  original_price: 1000,
-  // -O.jpg, e nao -F.webp: a marca d'agua nao abre WEBP e a CDN do
-  // Mercado Livre ignora o cabecalho que pede jpeg.
-  imageUrl: 'https://http2.mlstatic.com/D_NQ_NP_2X_808703-MLA99523580704_122025-O.jpg',
-});
+
+assert.equal(offers[0].id, 'MLB111');
+assert.equal(offers[0].title, 'Monitor Gamer 24 Polegadas');
+assert.equal(offers[0].permalink, 'https://www.mercadolivre.com.br/monitor-gamer/p/MLB111');
+assert.equal(offers[0].price, 700);
+assert.equal(offers[0].original_price, 1000);
+// -O.jpg, e nao -F.webp: a marca d'agua nao abre WEBP e a CDN do
+// Mercado Livre ignora o cabecalho que pede jpeg.
+assert.equal(offers[0].imageUrl, 'https://http2.mlstatic.com/D_NQ_NP_2X_808703-MLA99523580704_122025-O.jpg');
+
+// Os campos que deixam a mensagem explicativa. O marcador do ícone tem que
+// sumir do texto do vendedor: mandar "{icon_cockade}" para o grupo seria
+// vazar detalhe interno do feed.
+assert.equal(offers[0].seller, 'TNT Info');
+assert.equal(offers[0].shipping, 'Frete grátis');
+assert.equal(semNbsp(offers[0].installments), '10x R$ 70,00 sem juros');
+assert.equal(offers[0].variants, 'Disponível em 3 cores');
+assert.equal(semNbsp(offers[0].coupon), 'R$ 159,62 com Cupom');
+assert.equal(offers[0].rating, '4.9');
+assert.equal(offers[0].sales, 'Mais de 500 vendidos');
+// Sem componente `cbt` nem "envio da China": produto nacional.
+assert.equal(offers[0].origin, 'nacional');
 assert.equal(offers[1].original_price, null);
 // Card sem foto não pode inventar URL de imagem.
 assert.equal(offers[1].imageUrl, null);
