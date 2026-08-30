@@ -54,7 +54,11 @@ function toPromo(item) {
     return null;
   }
 
-  if (config.itadExcludeBundles && (item?.type && item.type !== 'game' || /\b(?:bundle|masterclass|e[- ]?learning|course|curso)\b/i.test(title || ''))) {
+  // Os parênteses são necessários: sem eles o `&&` amarra só na primeira
+  // condição e o filtro de título valeria mesmo com ITAD_EXCLUDE_BUNDLES=false.
+  if (config.itadExcludeBundles
+    && ((item?.type && item.type !== 'game')
+      || /\b(?:bundle|masterclass|e[- ]?learning|course|curso)\b/i.test(title || ''))) {
     return null;
   }
 
@@ -84,9 +88,11 @@ function toPromo(item) {
   };
 }
 
+// Sem `type` no filtro: a API do ITAD responde 500 quando esse campo chega
+// como lista, e ignora a forma em texto. A separação entre jogo, DLC e
+// pacote é feita localmente em toPromo, pelo campo `type` de cada item.
 function buildDealsFilter() {
   const filter = {
-    type: ['game'],
     cut: { min: config.itadMinDiscount, max: null },
   };
 
