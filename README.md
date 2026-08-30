@@ -226,19 +226,19 @@ O nome e a foto são aplicados à conta do WhatsApp conectada. Contatos que já 
 
 ## 🔐 Autorizar o Mercado Livre
 
-Configure no `.env` o `ML_CLIENT_ID`, `ML_CLIENT_SECRET` e uma URL de redirecionamento idêntica à cadastrada na aplicação:
+O Mercado Livre exige uma URL de redirecionamento com HTTPS. Publique este repositório na Vercel; a rota `api/mercadolivre/callback` não recebe nem armazena tokens. No painel da aplicação Mercado Livre, cadastre a URL abaixo. Ela precisa ser idêntica à do `.env`:
 
 ```env
-ML_REDIRECT_URI=http://localhost:3000/auth/mercadolivre/callback
+ML_REDIRECT_URI=https://seu-projeto.vercel.app/api/mercadolivre/callback
 ```
 
-Com o bot parado, execute:
+Depois, no seu computador, execute:
 
 ```bash
 npm run auth:mercadolivre
 ```
 
-Autorize a conta no navegador. O callback local grava os tokens e sua validade diretamente no `.env`; os valores não são exibidos no terminal nem enviados ao GitHub.
+Autorize a conta no navegador. Ao chegar na página da Vercel, copie a URL completa do navegador e cole no terminal. A Vercel recebe apenas o código temporário de autorização; o bot troca esse código localmente e grava os tokens e sua validade diretamente no `.env`. Tokens e segredos não são enviados à Vercel nem ao GitHub.
 
 ---
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 const crypto = require('crypto');
-const http = require('http');
 const { spawn } = require('child_process');
+const readline = require('readline/promises');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -33,15 +33,6 @@ function openBrowser(url) {
   spawn(command, args, { detached: true, stdio: 'ignore' }).unref();
 }
 
-function sendHtml(response, status, title, message) {
-  response.writeHead(status, {
-    'content-type': 'text/html; charset=utf-8',
-    'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
-    'x-content-type-options': 'nosniff',
-  });
-  response.end(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui;background:#071a2f;color:#eaf7ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:620px;padding:36px;border:1px solid #1d6f91;border-radius:18px;background:#0b2942}h1{color:#63dcff}</style><main class="card"><h1>${title}</h1><p>${message}</p></main></html>`);
-}
-
 const clientId = process.env.ML_CLIENT_ID;
 const clientSecret = process.env.ML_CLIENT_SECRET;
 const redirectUri = process.env.ML_REDIRECT_URI;
@@ -52,8 +43,8 @@ if (!clientId || !clientSecret || !redirectUri) {
 }
 
 const redirect = new URL(redirectUri);
-if (redirect.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(redirect.hostname)) {
-  console.error('Para o fluxo local, ML_REDIRECT_URI deve usar http://localhost ou http://127.0.0.1.');
+if (redirect.protocol !== 'https:') {
+  console.error('ML_REDIRECT_URI deve usar HTTPS, por exemplo a URL do projeto na Vercel.');
   process.exit(1);
 }
 
@@ -61,69 +52,42 @@ const state = base64Url(crypto.randomBytes(32));
 const codeVerifier = base64Url(crypto.randomBytes(64));
 const codeChallenge = base64Url(crypto.createHash('sha256').update(codeVerifier).digest());
 const authorizationUrl = buildAuthorizationUrl({ clientId, redirectUri, state, codeChallenge });
-const port = Number(redirect.port || 80);
-
-let completed = false;
-const server = http.createServer(async (request, response) => {
-  const requestUrl = new URL(request.url, redirect.origin);
-  if (requestUrl.pathname !== redirect.pathname) {
-    sendHtml(response, 404, 'Página não encontrada', 'Use o endereço de autorização exibido pelo Oli - Bot.');
-    return;
-  }
-
-  if (completed) {
-    sendHtml(response, 409, 'Autorização já utilizada', 'Feche esta página e volte ao terminal.');
-    return;
-  }
-  completed = true;
-
-  if (requestUrl.searchParams.get('state') !== state) {
-    sendHtml(response, 400, 'Autorização recusada', 'A validação de segurança não corresponde. Execute o comando novamente.');
-    server.close();
-    return;
-  }
-
-  const error = requestUrl.searchParams.get('error');
-  const code = requestUrl.searchParams.get('code');
-  if (error || !code) {
-    sendHtml(response, 400, 'Autorização cancelada', 'O Mercado Livre não forneceu um código de autorização.');
-    server.close();
-    return;
-  }
-
-  try {
-    await exchangeAuthorizationCode({ code, codeVerifier });
-    sendHtml(response, 200, 'Oli - Bot autorizado', 'Tokens salvos com segurança no .env local. Você já pode fechar esta página.');
-    console.log('\nAutorização concluída. ML_ACCESS_TOKEN e ML_REFRESH_TOKEN foram salvos no .env.');
-  } catch (exchangeError) {
-    sendHtml(response, 500, 'Falha na autorização', 'Confira o terminal para ver o motivo e tente novamente.');
-    console.error('\nFalha ao trocar o código por tokens:', exchangeError.message);
-  } finally {
-    server.close();
-  }
-});
-
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`A porta ${port} já está em uso. Feche o outro programa e tente novamente.`);
-  } else {
-    console.error('Não foi possível iniciar o callback local:', error.message);
-  }
-  process.exit(1);
-});
-
-server.listen(port, redirect.hostname, () => {
-  console.log('Callback local iniciado em:', redirectUri);
+async function authorize() {
   console.log('Abrindo a autorização do Mercado Livre no navegador...');
   openBrowser(authorizationUrl);
   console.log('Se o navegador não abrir, copie este endereço:');
   console.log(authorizationUrl);
-});
+  console.log('\nApós autorizar, a Vercel abrirá uma página de confirmação. Copie a URL completa dessa página e cole aqui.');
 
-const timeout = setTimeout(() => {
-  if (!completed) {
-    console.error('\nTempo de autorização expirado. Execute o comando novamente.');
-    server.close();
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const callbackUrl = await terminal.question('URL de retorno: ');
+  terminal.close();
+
+  let returned;
+  try {
+    returned = new URL(callbackUrl.trim());
+  } catch {
+    throw new Error('A URL de retorno não é válida. Execute o comando novamente.');
   }
-}, 5 * 60 * 1000);
-timeout.unref();
+
+  if (returned.origin !== redirect.origin || returned.pathname !== redirect.pathname) {
+    throw new Error('A URL de retorno não corresponde ao ML_REDIRECT_URI configurado.');
+  }
+  if (returned.searchParams.get('state') !== state) {
+    throw new Error('A validação de segurança não corresponde. Execute o comando novamente.');
+  }
+
+  const error = returned.searchParams.get('error');
+  const code = returned.searchParams.get('code');
+  if (error || !code) {
+    throw new Error('O Mercado Livre não forneceu um código de autorização.');
+  }
+
+  await exchangeAuthorizationCode({ code, codeVerifier });
+  console.log('\nAutorização concluída. ML_ACCESS_TOKEN e ML_REFRESH_TOKEN foram salvos no .env.');
+}
+
+authorize().catch((error) => {
+  console.error('\nFalha na autorização:', error.message);
+  process.exit(1);
+});

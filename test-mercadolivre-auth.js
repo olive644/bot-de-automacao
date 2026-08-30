@@ -7,7 +7,7 @@ const { updateEnvFile } = require('./src/utils/env-file');
 
 const url = new URL(buildAuthorizationUrl({
   clientId: '123456',
-  redirectUri: 'http://localhost:3000/auth/mercadolivre/callback',
+  redirectUri: 'https://teste.ngrok-free.app/auth/mercadolivre/callback',
   state: 'estado-seguro',
   codeChallenge: 'desafio-pkce',
 }));
