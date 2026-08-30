@@ -16,7 +16,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Detecção de duplicatas** — evita repostar a mesma promoção  
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
-✅ **Mercado Livre público (opcional)** — busca ofertas sem token, chave ou OAuth
+✅ **Mercado Livre (opcional)** — Ofertas do Dia sem token, chave, OAuth ou navegador
 ✅ **ITAD para jogos de PC (opcional)** — Steam, GOG e lojas parceiras com desconto real
 
 ---
@@ -103,14 +103,15 @@ QUEUE_CHECK_INTERVAL=30000  # 30 segundos
 # Nível de log
 LOG_LEVEL=INFO  # DEBUG, INFO, WARN, ERROR
 
-# Busca pública no Mercado Livre (sem token)
+# Ofertas do Dia do Mercado Livre (sem token)
 ML_PUBLIC_ENABLED=true
-ML_PUBLIC_SEARCHES=ofertas jogos ps5,ofertas jogos xbox series,ofertas jogos nintendo switch,ofertas jogos pc,pc gamer,computador,processador,placa de video,memoria ram,ssd nvme,monitor gamer,notebook gamer,perifericos gamer
+ML_PUBLIC_CATEGORIES=MLB1144,MLB1648
+ML_PUBLIC_KEYWORDS=playstation,xbox,nintendo,controle,notebook,monitor,ssd,placa de video
+ML_PUBLIC_PAGES=2
 ML_PUBLIC_POLL_MINUTES=60
 ML_PUBLIC_MIN_DISCOUNT=20
 ML_PUBLIC_MAX_RESULTS=3
-ML_PUBLIC_MAX_PER_SEARCH=1
-ML_WEB_FALLBACK_ENABLED=true
+ML_PUBLIC_MAX_PER_CATEGORY=1
 ```
 
 ### 5️⃣ Iniciar o Bot
@@ -219,46 +220,46 @@ Todos os eventos são logados com timestamps. Exemplo:
 
 ---
 
-## 🛒 Busca pública do Mercado Livre
+## 🛒 Ofertas do Dia do Mercado Livre
 
-O Oli - Bot pode consultar o catálogo público do Mercado Livre e enviar somente itens que possuam preço anterior maior que o preço atual. Isso não requer token, chave, conta vendedora, OAuth ou Vercel.
+O Oli - Bot lê a página pública `mercadolivre.com.br/ofertas` e envia somente itens cujo preço anterior é maior que o preço atual. Não requer token, chave, conta vendedora, OAuth, Vercel nem navegador headless — é uma requisição HTTP simples.
 
-No seu `.env`, ative e escolha os termos que interessam ao seu grupo:
+No seu `.env`, ative e escolha as categorias que interessam ao seu grupo:
 
 ```env
 ML_PUBLIC_ENABLED=true
-ML_PUBLIC_SEARCHES=jogos ps5,jogos xbox,ssd nvme,placa de video
+ML_PUBLIC_CATEGORIES=MLB1144,MLB1648
+ML_PUBLIC_KEYWORDS=playstation,xbox,nintendo,controle,notebook,monitor,ssd,placa de video
+ML_PUBLIC_PAGES=2
 ML_PUBLIC_POLL_MINUTES=60
 ML_PUBLIC_MIN_DISCOUNT=20
 ML_PUBLIC_MAX_RESULTS=3
+ML_PUBLIC_MAX_PER_CATEGORY=1
 ```
 
-O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Ele avalia até 50 resultados por termo, prioriza o maior desconto e alterna a ordem das pesquisas a cada ciclo, evitando que jogos ou hardware fiquem sempre por último.
+IDs de categoria mais usados:
 
-Com `ML_WEB_FALLBACK_ENABLED=true` (padrão), o bot usa diretamente a página pública do Mercado Livre pelo navegador local e não chama a API que pode responder 403. Essa alternativa depende da estrutura pública do site e pode parar se houver CAPTCHA ou mudança de layout; nesse caso, o bot mantém as demais fontes ativas.
+| ID | Categoria | ID | Categoria |
+| --- | --- | --- | --- |
+| `MLB1144` | Games | `MLB5726` | Eletrodomésticos |
+| `MLB1648` | Informática | `MLB1574` | Casa e Decoração |
+| `MLB1000` | Eletrônicos, Áudio e Vídeo | `MLB1276` | Esportes e Fitness |
+| `MLB1051` | Celulares e Telefones | `MLB1246` | Beleza e Cuidado Pessoal |
 
-No Windows, o bot procura automaticamente Google Chrome e Microsoft Edge instalados. Se o log informar que nenhum navegador foi encontrado, execute uma vez `npm run install:browser` e reinicie o bot.
+Use `ML_PUBLIC_CATEGORIES=todas` para ler o feed inteiro, sem filtro de categoria.
 
-Se a página pública também responder com bloqueio ou CAPTCHA, use a integração opcional com a API gerenciada da Parse.bot:
+`ML_PUBLIC_KEYWORDS` é opcional e filtra pelo título: uma palavra-chave casa quando **todas** as palavras dela aparecem no título, ignorando acentos e maiúsculas. Deixe vazio para aceitar qualquer oferta das categorias escolhidas.
 
-1. Crie uma chave gratuita na [API MercadoLibre da Parse.bot](https://parse.bot/marketplace/d86a68fb-f0c5-45b9-8fde-599ae8e726ea/mercadolibre-com-api).
-2. Coloque a chave somente no `.env` local:
+O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma, prioriza o maior desconto, alterna a ordem das categorias a cada ciclo e lembra os itens enviados para não repetir a mesma oferta.
 
-```env
-ML_PARSE_API_KEY=sua_chave_aqui
-ML_PUBLIC_POLL_MINUTES=240
-```
+### Por que não existe mais busca por termo
 
-O coletor fará uma busca por ciclo e alternará os termos configurados. Com intervalo de quatro horas, são cerca de 180 consultas mensais, dentro dos 200 créditos do plano gratuito informados pelo serviço. Essa API é um serviço independente, não oficial do Mercado Livre; sem ela, a coleta automática ainda pode ser impedida pelo bloqueio da API oficial e da página pública.
+O Mercado Livre fechou os dois caminhos que o bot usava para pesquisar palavras:
 
-Se a API responder `401` ou `403`, o bot pode tentar automaticamente a credencial da própria aplicação, sem login de usuário. Gere uma chave nova no painel do Mercado Livre e mantenha-a apenas no `.env` local:
+- `api.mercadolibre.com/sites/MLB/search` responde `403 forbidden` para chamadas anônimas;
+- `lista.mercadolivre.com.br/<termo>` redireciona para `/gz/account-verification`, ou seja, exige login mesmo em navegador real.
 
-```env
-ML_CLIENT_ID=
-ML_CLIENT_SECRET=
-```
-
-Não use `ML_ACCESS_TOKEN`, `ML_REFRESH_TOKEN` ou URL de redirecionamento para a busca pública.
+A página de ofertas continua aberta e já traz o preço anterior de cada item, que é o dado necessário para calcular o desconto. Por isso a seleção passou a ser por categoria (mais palavra-chave opcional) em vez de por termo de busca. Se o Mercado Livre mudar o formato da página, o bot registra o aviso no log e mantém as demais fontes ativas.
 
 ## 🎮 Jogos de PC com ITAD
 

@@ -19,6 +19,14 @@ function parseNonNegativeInteger(value, fallback) {
   return Number.isInteger(parsed) ? Math.max(0, parsed) : fallback;
 }
 
+function parseTextList(value, fallback = '') {
+  const values = (value === undefined || value === null ? fallback : value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
 const config = {
   // IDs dos grupos fonte (de onde capturamos promoções)
   sourceGroups: process.env.SOURCE_GROUPS
@@ -28,25 +36,20 @@ const config = {
   // ID do grupo destino (para onde enviamos as promoções convertidas)
   destGroup: normalizeChatId(process.env.DEST_GROUP),
 
-  // Catálogo público do Mercado Livre — não requer OAuth ou tokens.
+  // Ofertas do Dia do Mercado Livre — não requer OAuth, token ou navegador.
   mercadoLivrePublicEnabled: process.env.ML_PUBLIC_ENABLED === 'true',
-  mercadoLivreSearches: process.env.ML_PUBLIC_SEARCHES
-    ? process.env.ML_PUBLIC_SEARCHES.split(',').map((query) => query.trim()).filter(Boolean)
-    : [],
+  // IDs de categoria do feed de ofertas. Games e Informática por padrão.
+  mercadoLivreCategories: parseTextList(process.env.ML_PUBLIC_CATEGORIES, 'MLB1144,MLB1648'),
+  // Filtro opcional por título. Lista vazia aceita toda oferta da categoria.
+  mercadoLivreKeywords: parseTextList(process.env.ML_PUBLIC_KEYWORDS),
+  mercadoLivrePages: Math.min(5, Math.max(1, parseInt(process.env.ML_PUBLIC_PAGES, 10) || 2)),
   mercadoLivrePollMinutes: Math.max(15, parseInt(process.env.ML_PUBLIC_POLL_MINUTES, 10) || 60),
   mercadoLivreMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ML_PUBLIC_MIN_DISCOUNT, 10) || 20)),
   mercadoLivreMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_RESULTS, 10) || 3)),
-  mercadoLivreMaxPerSearch: Math.min(3, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_PER_SEARCH, 10) || 1)),
-  // A API pública costuma responder 403 para aplicações sem política de
-  // catálogo. Por isso o navegador público é o modo padrão; só é desligado
-  // quando a variável for explicitamente `false`.
-  mercadoLivreWebFallbackEnabled: process.env.ML_WEB_FALLBACK_ENABLED !== 'false',
-  // API gerenciada opcional para quando o Mercado Livre bloquear API e página.
-  // A chave deve ficar somente no .env local.
-  mercadoLivreParseApiKey: process.env.ML_PARSE_API_KEY || process.env.PARSE_API_KEY || '',
-  // Fallback opcional para bloqueios 401/403 do catálogo público.
-  mercadoLivreClientId: process.env.ML_CLIENT_ID || '',
-  mercadoLivreClientSecret: process.env.ML_CLIENT_SECRET || '',
+  mercadoLivreMaxPerCategory: Math.min(5, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_PER_CATEGORY, 10) || 1)),
+  // Só para avisar quem ainda tem a variável antiga no .env: a busca por
+  // termo exige login no Mercado Livre e por isso deixou de ser usada.
+  mercadoLivreLegacySearches: parseTextList(process.env.ML_PUBLIC_SEARCHES),
 
   // IsThereAnyDeal (ITAD) — promoções de jogos de PC.
   itadEnabled: process.env.ITAD_ENABLED === 'true',

@@ -2,18 +2,88 @@ const assert = require('node:assert/strict');
 const {
   formatCurrency,
   getDiscountPercent,
+  normalizeText,
+  matchesKeywords,
+  buildOffersUrl,
+  extractOffersState,
+  readOffers,
   toPromo,
   selectEligiblePromos,
-  buildWebSearchUrl,
-  unwrapManagedPayload,
-  canonicalizeMercadoLivreUrl,
-  normalizeManagedResults,
 } = require('./src/services/mercadolivre-public');
 
-assert.equal(formatCurrency(52.28), 'R$ 52,28');
+// O separador que o Intl usa entre "R$" e o valor é espaço não separável.
+assert.equal(formatCurrency(52.28), 'R$\u00A052,28');
 assert.equal(getDiscountPercent(100, 75), 25);
 assert.equal(getDiscountPercent(100, 100), 0);
-assert.equal(buildWebSearchUrl('Placa de vídeo'), 'https://lista.mercadolivre.com.br/placa-de-video');
+
+assert.equal(normalizeText('Placa de Vídeo RTX 3060!'), 'placa de video rtx 3060');
+
+// Sem palavras-chave configuradas, toda oferta passa.
+assert.equal(matchesKeywords('Qualquer produto', []), true);
+assert.equal(matchesKeywords('Placa De Vídeo RTX 3060 12GB', ['placa de video']), true);
+assert.equal(matchesKeywords('Placa-mãe Asus B550M', ['placa de video']), false);
+assert.equal(matchesKeywords('SSD NVMe 1TB Kingston', ['ssd nvme', 'monitor']), true);
+
+assert.equal(buildOffersUrl('MLB1144'), 'https://www.mercadolivre.com.br/ofertas?category=MLB1144');
+assert.equal(buildOffersUrl('MLB1648', 2), 'https://www.mercadolivre.com.br/ofertas?category=MLB1648&page=2');
+assert.equal(buildOffersUrl('todas'), 'https://www.mercadolivre.com.br/ofertas');
+
+// Amostra reduzida da página real: o estado do React fica entre
+// `_n.ctx.r=` e `};_n.ctx.r.assets`, e os produtos ficam em appProps.
+const state = {
+  appProps: {
+    pageProps: {
+      data: {
+        items: [
+          {
+            card: {
+              metadata: { id: 'MLB111', url: 'www.mercadolivre.com.br/monitor-gamer/p/MLB111' },
+              components: [
+                { type: 'title', title: { text: 'Monitor Gamer 24 Polegadas' } },
+                {
+                  type: 'price',
+                  price: {
+                    current_price: { value: 700 },
+                    price_labels: [{ values: [{ type: 'price', price: { value: 1000, previous: true } }] }],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            // Item sem preço anterior: entra na lista, mas sem desconto.
+            card: {
+              metadata: { id: 'MLB222', url: 'https://www.mercadolivre.com.br/teclado/p/MLB222' },
+              components: [
+                { type: 'title', title: { text: 'Teclado Mecânico' } },
+                { type: 'price', price: { current_price: { value: 250 } } },
+              ],
+            },
+          },
+          // Card quebrado: precisa ser descartado sem derrubar a leitura.
+          { card: { metadata: {}, components: [] } },
+        ],
+      },
+    },
+  },
+};
+const html = `<html><script>_n.ctx.r=${JSON.stringify(state)};_n.ctx.r.assets.manifest=new Map([])</script></html>`;
+
+assert.ok(extractOffersState(html));
+assert.equal(extractOffersState('<html>sem estado</html>'), null);
+
+const offers = readOffers(html);
+assert.equal(offers.length, 2);
+assert.deepEqual(offers[0], {
+  id: 'MLB111',
+  title: 'Monitor Gamer 24 Polegadas',
+  permalink: 'https://www.mercadolivre.com.br/monitor-gamer/p/MLB111',
+  price: 700,
+  original_price: 1000,
+});
+assert.equal(offers[1].original_price, null);
+// Página sem o bloco de dados devolve null — diferente de lista vazia.
+assert.equal(readOffers('<html>sem estado</html>'), null);
 
 const promo = toPromo({
   id: 'MLB123',
@@ -23,9 +93,10 @@ const promo = toPromo({
   permalink: 'https://www.mercadolivre.com.br/jogo-em-promocao/p/MLB123',
 });
 assert.equal(promo.id, 'MLB123');
-assert.equal(promo.originalPrice, 'R$ 129,90');
-assert.equal(promo.currentPrice, 'R$ 79,90');
+assert.equal(promo.originalPrice, 'R$\u00A0129,90');
+assert.equal(promo.currentPrice, 'R$\u00A079,90');
 assert.equal(promo.discountPercent, 38);
+assert.equal(promo.sourceGroup, 'Mercado Livre (ofertas do dia)');
 assert.equal(toPromo({ id: 'MLB999', title: 'Sem desconto', price: 100, original_price: null, permalink: 'https://example.com' }), null);
 
 const sorted = selectEligiblePromos([
@@ -34,34 +105,7 @@ const sorted = selectEligiblePromos([
 ]);
 assert.equal(sorted[0].id, 'MLB2');
 
-assert.deepEqual(unwrapManagedPayload({ status: 'success', data: '{"results":[]}' }), { results: [] });
-assert.equal(
-  canonicalizeMercadoLivreUrl('https://www.mercadolivre.com.br/produto/p/MLB123456?wid=MLB999#tracking'),
-  'https://www.mercadolivre.com.br/produto/p/MLB123456'
-);
-assert.equal(canonicalizeMercadoLivreUrl('https://click1.mercadolivre.com.br/anuncio'), null);
+// Item sem desconto real não vira promoção.
+assert.equal(selectEligiblePromos(offers).length, 1);
 
-const managed = normalizeManagedResults({
-  status: 'success',
-  data: JSON.stringify({
-    results: [
-      {
-        title: 'SSD NVMe em promoção',
-        url: 'https://www.mercadolivre.com.br/ssd-nvme/p/MLB123456?wid=MLB654321#tracking',
-        price: 199.9,
-        original_price: 299.9,
-      },
-      {
-        title: 'Anúncio patrocinado sem link original',
-        url: 'https://click1.mercadolivre.com.br/rastreio',
-        price: 10,
-        original_price: 20,
-      },
-    ],
-  }),
-});
-assert.equal(managed.length, 1);
-assert.equal(managed[0].id, 'MLB123456');
-assert.equal(managed[0].sourceGroup, 'Mercado Livre (busca gerenciada)');
-
-console.log('Coletor público do Mercado Livre: filtros e preços válidos.');
+console.log('Coletor público do Mercado Livre: leitura das ofertas, filtros e preços válidos.');
