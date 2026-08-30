@@ -9,6 +9,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Escuta promoções** em múltiplos grupos/canais-fonte  
 ✅ **Preserva todos os links originais**, sem conversão de afiliados
 ✅ **Identidade própria** — nome Oli - Bot e foto configurável
+✅ **Imagem da promoção** — encaminha fotos recebidas com legenda
 ✅ **Envio espaçado** — delays aleatórios entre mensagens
 ✅ **Anti-banimento** — fila sequencial, jitter em todos os delays  
 ✅ **Persistência** — recupera promoções não enviadas após restart  

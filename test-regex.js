@@ -17,11 +17,15 @@ console.log('='.repeat(60) + '\n');
 const testMessages = [
   {
     name: 'Mercado Livre - Link simples',
-    text: 'Fone Bluetooth Sony 🎧\nhttps://www.mercadolivre.com.br/p/produto123?aff=test\nR$ 149,90',
+    text: 'Fone Bluetooth Sony 🎧\nDe: R$ 199,90\nPor: R$ 149,90\nhttps://www.mercadolivre.com.br/p/produto123?aff=test',
+    expectedOriginal: 'R$ 199,90',
+    expectedCurrent: 'R$ 149,90',
   },
   {
     name: 'Amazon - Com preço formatado',
     text: 'iPhone 14 Pro 📱\nhttps://amzn.to/XYZABC\nR$ 5.299,00',
+    expectedOriginal: null,
+    expectedCurrent: 'R$ 5.299,00',
   },
   {
     name: 'Shopee - Múltiplos preços',
@@ -43,6 +47,10 @@ testMessages.forEach((test, idx) => {
 
   // Extrai informações
   const info = extractPromoInfo(test.text);
+  if (Object.hasOwn(test, 'expectedCurrent')) {
+    assert.equal(info.originalPrice, test.expectedOriginal);
+    assert.equal(info.currentPrice, test.expectedCurrent);
+  }
   console.log('📝 Mensagem:');
   console.log('   ' + test.text.replace(/\n/g, '\n   '));
 
@@ -64,6 +72,12 @@ testMessages.forEach((test, idx) => {
       assert.ok(formatted.includes(url), `Link original ausente da mensagem: ${url}`);
     });
     assert.ok(formatted.includes('Oli - Bot'), 'Assinatura do Oli - Bot ausente');
+    if (test.expectedOriginal) {
+      assert.ok(formatted.includes(`~De: ${test.expectedOriginal}~`));
+      assert.ok(formatted.includes(`*Por: ${test.expectedCurrent}*`));
+    } else if (test.expectedCurrent) {
+      assert.ok(formatted.includes(`*Preço: ${test.expectedCurrent}*`));
+    }
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');
   }

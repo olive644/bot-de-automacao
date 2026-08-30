@@ -64,10 +64,35 @@ async function processMessage(message, sourceName) {
 
   logger.info(`[Listener] URL(s) encontrada(s): ${promoInfo.urls.length}`);
 
+  let media = null;
+  if (message.hasMedia) {
+    try {
+      const downloaded = await message.downloadMedia();
+      if (downloaded?.mimetype?.startsWith('image/')) {
+        const size = Buffer.byteLength(downloaded.data, 'base64');
+        if (size <= 8 * 1024 * 1024) {
+          media = {
+            mimetype: downloaded.mimetype,
+            data: downloaded.data,
+            filename: downloaded.filename || 'oferta.jpg',
+          };
+          logger.info('[Listener] Imagem da promoção capturada.');
+        } else {
+          logger.warn('[Listener] Imagem maior que 8 MB — enviando somente o texto.');
+        }
+      }
+    } catch (error) {
+      logger.warn('[Listener] Não foi possível baixar a imagem — enviando somente o texto:', error.message);
+    }
+  }
+
   const promo = {
     title: promoInfo.title || 'Confira esta oferta',
     urls: promoInfo.urls,
     prices: promoInfo.prices,
+    originalPrice: promoInfo.originalPrice,
+    currentPrice: promoInfo.currentPrice,
+    media,
     rawText: promoInfo.rawText,
     sourceGroup: sourceName,
     receivedAt: new Date().toISOString(),

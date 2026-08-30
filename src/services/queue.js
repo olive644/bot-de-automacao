@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { MessageMedia } = require('whatsapp-web.js');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { randomDelay, formatMs } = require('../utils/delay');
@@ -59,6 +60,9 @@ loadQueueFromDisk();
  * @param {string} promo.title - Título da promoção
  * @param {string[]} promo.urls - Links originais da mensagem
  * @param {string[]} promo.prices - Preços encontrados
+ * @param {string|null} promo.originalPrice - Preço anterior
+ * @param {string|null} promo.currentPrice - Preço atual
+ * @param {object|null} promo.media - Imagem em base64
  * @param {string} promo.rawText - Texto original da mensagem
  */
 function enqueue(promo) {
@@ -84,8 +88,11 @@ function formatMessage(promo) {
     parts.push(`\n*${promo.title}*`);
   }
 
-  if (promo.prices && promo.prices.length > 0) {
-    parts.push(`💰 ${promo.prices.join(' → ')}`);
+  if (promo.originalPrice && promo.currentPrice && promo.originalPrice !== promo.currentPrice) {
+    parts.push(`~De: ${promo.originalPrice}~`);
+    parts.push(`🔥 *Por: ${promo.currentPrice}*`);
+  } else if (promo.currentPrice) {
+    parts.push(`💰 *Preço: ${promo.currentPrice}*`);
   }
 
   if (promo.urls && promo.urls.length > 0) {
@@ -120,7 +127,21 @@ async function sendPromo(client, promo, attempt = 1) {
     const typingTime = await randomDelay(config.typingDelayMin, config.typingDelayMax);
     logger.info(`[Fila] Aguardando ${formatMs(typingTime)} antes do envio...`);
 
-    await client.sendMessage(config.destGroup, message);
+    if (promo.media?.data && promo.media?.mimetype) {
+      try {
+        const media = new MessageMedia(
+          promo.media.mimetype,
+          promo.media.data,
+          promo.media.filename || 'oferta.jpg'
+        );
+        await client.sendMessage(config.destGroup, media, { caption: message });
+      } catch (mediaError) {
+        logger.warn('[Fila] Falha ao enviar imagem; tentando somente o texto:', mediaError.message);
+        await client.sendMessage(config.destGroup, message);
+      }
+    } else {
+      await client.sendMessage(config.destGroup, message);
+    }
 
     logger.info(`[Fila] ✅ Promoção enviada: "${promo.title || 'Sem título'}"`);
   } catch (error) {
