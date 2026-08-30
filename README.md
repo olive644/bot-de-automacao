@@ -105,10 +105,11 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARN, ERROR
 
 # Busca pública no Mercado Livre (sem token)
 ML_PUBLIC_ENABLED=true
-ML_PUBLIC_SEARCHES=jogos ps5,jogos nintendo switch,ssd nvme
+ML_PUBLIC_SEARCHES=ofertas jogos ps5,ofertas jogos xbox series,ofertas jogos nintendo switch,ofertas jogos pc,pc gamer,computador,processador,placa de video,memoria ram,ssd nvme,monitor gamer,notebook gamer,perifericos gamer
 ML_PUBLIC_POLL_MINUTES=60
 ML_PUBLIC_MIN_DISCOUNT=20
 ML_PUBLIC_MAX_RESULTS=3
+ML_PUBLIC_MAX_PER_SEARCH=1
 ```
 
 ### 5️⃣ Iniciar o Bot
@@ -246,7 +247,7 @@ ML_PUBLIC_MIN_DISCOUNT=20
 ML_PUBLIC_MAX_RESULTS=3
 ```
 
-O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Use buscas específicas; não configure apenas `jogos`, pois isso tende a trazer ofertas pouco relevantes.
+O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Ele avalia até 50 resultados por termo, prioriza o maior desconto e alterna a ordem das pesquisas a cada ciclo, evitando que jogos ou hardware fiquem sempre por último.
 
 ---
 

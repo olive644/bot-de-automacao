@@ -30,6 +30,7 @@ const config = {
   mercadoLivrePollMinutes: Math.max(15, parseInt(process.env.ML_PUBLIC_POLL_MINUTES, 10) || 60),
   mercadoLivreMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ML_PUBLIC_MIN_DISCOUNT, 10) || 20)),
   mercadoLivreMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_RESULTS, 10) || 3)),
+  mercadoLivreMaxPerSearch: Math.min(3, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_PER_SEARCH, 10) || 1)),
 
   // Delays entre mensagens na fila (anti-banimento)
   queueDelayMin: parseInt(process.env.QUEUE_DELAY_MIN, 10) || 120000,  // 2 min

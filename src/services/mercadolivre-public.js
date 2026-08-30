@@ -16,6 +16,7 @@ const MAX_SEEN_ITEMS = 5000;
 let timer = null;
 let running = false;
 let seen = new Map();
+let nextSearchIndex = 0;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -79,10 +80,19 @@ function seenKey(promo) {
   return `${promo.id}:${promo.currentPrice}`;
 }
 
+function selectEligiblePromos(items) {
+  return items
+    .map(toPromo)
+    .filter((promo) => promo && !seen.has(seenKey(promo)))
+    .sort((left, right) => right.discountPercent - left.discountPercent);
+}
+
 async function search(query) {
   const url = new URL(SEARCH_URL);
   url.searchParams.set('q', query);
-  url.searchParams.set('limit', String(Math.max(config.mercadoLivreMaxResults * 4, 20)));
+  // A API não ordena por desconto. Avaliamos uma amostra maior para encontrar
+  // promoções com preço anterior, sem fazer uma chamada por produto.
+  url.searchParams.set('limit', '50');
 
   const response = await fetch(url, {
     headers: { accept: 'application/json', 'user-agent': 'Oli-Bot/1.0' },
@@ -101,17 +111,22 @@ async function poll() {
 
   try {
     let added = 0;
-    for (const query of config.mercadoLivreSearches) {
+    const searches = config.mercadoLivreSearches;
+    const orderedSearches = searches.slice(nextSearchIndex).concat(searches.slice(0, nextSearchIndex));
+    nextSearchIndex = (nextSearchIndex + 1) % searches.length;
+
+    for (const query of orderedSearches) {
       const items = await search(query);
-      for (const item of items) {
-        const promo = toPromo(item);
-        if (!promo || seen.has(seenKey(promo)) || added >= config.mercadoLivreMaxResults) continue;
+      const candidates = selectEligiblePromos(items).slice(0, config.mercadoLivreMaxPerSearch);
+      for (const promo of candidates) {
+        if (added >= config.mercadoLivreMaxResults) break;
 
         seen.set(seenKey(promo), Date.now());
         enqueue(promo);
         added += 1;
         logger.info(`[Mercado Livre] Oferta adicionada (${promo.discountPercent}% OFF): ${promo.title}`);
       }
+      if (added >= config.mercadoLivreMaxResults) break;
     }
     if (added > 0) saveSeen();
     logger.info(`[Mercado Livre] Consulta concluída: ${added} nova(s) oferta(s) elegível(is).`);
@@ -146,6 +161,7 @@ module.exports = {
   formatCurrency,
   getDiscountPercent,
   toPromo,
+  selectEligiblePromos,
   startMercadoLivrePublicSource,
   stopMercadoLivrePublicSource,
 };
