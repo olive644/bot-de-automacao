@@ -131,6 +131,10 @@ const config = {
   aliexpressPollMinutes: Math.max(15, parseInt(process.env.ALIEXPRESS_POLL_MINUTES, 10) || 60),
   aliexpressMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ALIEXPRESS_MIN_DISCOUNT, 10) || 30)),
   aliexpressMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ALIEXPRESS_MAX_RESULTS, 10) || 3)),
+  // Anuncio que cobre varias capacidades no titulo traz o preco da mais
+  // barata; descartar e mais honesto do que avisar, porque quem le o valor
+  // em destaque nao confere o anuncio.
+  aliexpressSkipMultiVariant: process.env.ALIEXPRESS_SKIP_MULTI_VARIANT !== 'false',
   aliexpressMaxPerSearch: Math.min(5, Math.max(1, parseInt(process.env.ALIEXPRESS_MAX_PER_SEARCH, 10) || 1)),
 
   // IsThereAnyDeal (ITAD) — promoções de jogos de PC.

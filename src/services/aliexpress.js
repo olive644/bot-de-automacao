@@ -171,6 +171,16 @@ function toPromo(item) {
     return null;
   }
 
+  // Anúncio que cobre várias capacidades no mesmo título traz o preço da
+  // mais barata. Um SSD "128GB 256GB 512GB 1TB 2TB" anunciado por R$ 201,97
+  // tem a versão de 2TB a R$ 1.533,86 — sete vezes mais. Nem o aviso
+  // resolvia: quem lê o valor em destaque não vai conferir o anúncio.
+  // Medido, descartar isso tira 26% das ofertas e ainda sobram 145
+  // candidatas por ciclo, para 2 publicadas por hora.
+  if (config.aliexpressSkipMultiVariant && item.multiVariant) {
+    return null;
+  }
+
   return {
     id: item.id,
     title: item.title,
@@ -187,7 +197,7 @@ function toPromo(item) {
     origin: item.origin || null,
     taxNote: item.origin === 'nacional'
       ? 'Sai de estoque no Brasil, sem imposto de importação'
-      : 'Importado; pode ter imposto na entrada',
+      : 'Importado — o valor acima NÃO inclui os impostos de importação',
     variants: item.multiVariant ? 'O anúncio tem versões com preços diferentes' : null,
     priceFromVariant: !!item.multiVariant,
     rating: item.rating || null,
