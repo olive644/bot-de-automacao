@@ -103,8 +103,16 @@ async function search(query) {
   let response = await requestSearch(url);
   if ((response.status === 401 || response.status === 403) && config.mercadoLivreClientId && config.mercadoLivreClientSecret) {
     logger.info('[Mercado Livre] Catálogo público bloqueado; tentando credencial da aplicação.');
-    const token = await getApplicationToken();
-    response = await requestSearch(url, token);
+    try {
+      const token = await getApplicationToken();
+      response = await requestSearch(url, token);
+    } catch (authError) {
+      if (config.mercadoLivreWebFallbackEnabled) {
+        logger.warn('[Mercado Livre] Credencial da aplicação recusada; tentando página pública.');
+        return searchWebPage(query);
+      }
+      throw authError;
+    }
   }
   if (!response.ok) {
     const body = await response.text().catch(() => '');
