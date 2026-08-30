@@ -32,6 +32,14 @@ const config = {
   mercadoLivreMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_RESULTS, 10) || 3)),
   mercadoLivreMaxPerSearch: Math.min(3, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_PER_SEARCH, 10) || 1)),
 
+  // IsThereAnyDeal (ITAD) — promoções de jogos de PC.
+  itadEnabled: process.env.ITAD_ENABLED === 'true',
+  itadApiKey: process.env.ITAD_API_KEY || process.env.IS_THERE_ANY_DEAL_API_KEY || '',
+  itadCountry: (process.env.ITAD_COUNTRY || 'BR').toUpperCase(),
+  itadPollMinutes: Math.max(15, parseInt(process.env.ITAD_POLL_MINUTES, 10) || 60),
+  itadMinDiscount: Math.min(100, Math.max(1, parseInt(process.env.ITAD_MIN_DISCOUNT, 10) || 50)),
+  itadMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ITAD_MAX_RESULTS, 10) || 3)),
+
   // Delays entre mensagens na fila (anti-banimento)
   queueDelayMin: parseInt(process.env.QUEUE_DELAY_MIN, 10) || 120000,  // 2 min
   queueDelayMax: parseInt(process.env.QUEUE_DELAY_MAX, 10) || 300000,  // 5 min

@@ -16,7 +16,8 @@
     "test:regex": "node test-regex.js",
     "test:auth": "node test-mercadolivre-auth.js",
     "test:mercadolivre": "node test-mercadolivre-public.js",
-    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre",
+    "test:itad": "node test-itad.js",
+    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad",
     "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
     "dev": "node --watch index.js"
   },

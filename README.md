@@ -18,6 +18,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
 ✅ **Mercado Livre público (opcional)** — busca ofertas sem token, chave ou OAuth
+✅ **ITAD para jogos de PC (opcional)** — Steam, GOG e lojas parceiras com desconto real
 
 ---
 
@@ -248,6 +249,21 @@ ML_PUBLIC_MAX_RESULTS=3
 ```
 
 O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Ele avalia até 50 resultados por termo, prioriza o maior desconto e alterna a ordem das pesquisas a cada ciclo, evitando que jogos ou hardware fiquem sempre por último.
+
+## 🎮 Jogos de PC com ITAD
+
+Com uma chave do [IsThereAnyDeal](https://isthereanydeal.com/apps/my/), o bot consulta promoções reais de jogos de PC e mostra a loja, o preço anterior e o atual. A chave fica somente no `.env` local:
+
+```env
+ITAD_ENABLED=true
+ITAD_API_KEY=sua_chave_aqui
+ITAD_COUNTRY=BR
+ITAD_POLL_MINUTES=60
+ITAD_MIN_DISCOUNT=50
+ITAD_MAX_RESULTS=3
+```
+
+O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
 
 ---
 

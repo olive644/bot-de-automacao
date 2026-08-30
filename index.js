@@ -15,6 +15,7 @@ const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
 const { configureBotProfile } = require('./src/services/profile');
 const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require('./src/services/mercadolivre-public');
+const { startItadSource, stopItadSource } = require('./src/services/itad');
 const logger = require('./src/utils/logger');
 
 // --- Validação mínima de configuração ---
@@ -28,6 +29,9 @@ function validateConfig() {
   }
   if (config.mercadoLivrePublicEnabled && config.mercadoLivreSearches.length === 0) {
     logger.warn('ML_PUBLIC_ENABLED está ativo, mas ML_PUBLIC_SEARCHES não possui termos para pesquisar.');
+  }
+  if (config.itadEnabled && !config.itadApiKey) {
+    logger.warn('ITAD_ENABLED está ativo, mas ITAD_API_KEY não foi configurada no .env.');
   }
 }
 
@@ -50,6 +54,7 @@ client.once('ready', async () => {
 
   // Consulta o catálogo público; não depende de token, OAuth ou conta vendedora.
   startMercadoLivrePublicSource();
+  startItadSource();
 });
 
 // --- Graceful shutdown (Ctrl+C) ---
@@ -57,6 +62,7 @@ process.on('SIGINT', async () => {
   logger.info('Encerrando bot...');
   stopProcessing();
   stopMercadoLivrePublicSource();
+  stopItadSource();
   saveBeforeExit();
 
   try {
