@@ -16,7 +16,10 @@ let qrData = null;
 
 // --- Configurar Client ---
 const client = new Client({
-  authStrategy: new LocalAuth(),
+  authStrategy: new LocalAuth({
+    clientId: 'qr-generator-' + Date.now(),
+    dataPath: path.join(__dirname, '.wwebjs_auth_qr'),
+  }),
   puppeteer: {
     headless: true,
     args: [
