@@ -13,6 +13,7 @@ const config = require('./src/config');
 const client = require('./src/services/whatsapp');
 const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
+const { configureBotProfile } = require('./src/services/profile');
 const logger = require('./src/utils/logger');
 
 // --- Validação mínima de configuração ---
@@ -28,12 +29,14 @@ function validateConfig() {
 
 // --- Quando o client estiver pronto ---
 // Usa once() para garantir execução única mesmo que o evento dispare múltiplas vezes
-client.once('ready', () => {
+client.once('ready', async () => {
   logger.info('='.repeat(50));
   logger.info('Bot de Promoções iniciado com sucesso!');
   logger.info(`Grupos fonte: ${config.sourceGroups.length}`);
   logger.info(`Grupo destino: ${config.destGroup || 'NÃO CONFIGURADO'}`);
   logger.info('='.repeat(50));
+
+  await configureBotProfile(client);
 
   // Registra o listener de mensagens
   registerListener(client);

@@ -107,7 +107,7 @@ Agora você pode:
    ```
 
 3. **Verificar no grupo-destino:**
-   - Você verá a mensagem com o link afiliado!
+   - Você verá a mensagem do Oli - Bot com os links originais!
 
 ✅ Tudo funcionando!
 
@@ -200,7 +200,7 @@ npm start  # Reconnects automaticamente
 Seu bot está pronto para usar. Próximos passos:
 
 1. **Deixe rodando:** Bot vai capturar promoções 24/7
-2. **Integrar afiliados:** Edite `src/services/affiliate.js` com suas APIs
+2. **Personalizar:** Ajuste nome, foto e delays no `.env`
 3. **Monitorar:** Use `npm run status` para ver o que está acontecendo
 4. **Escalabilidade:** Leia `ARCHITECTURE.md` para entender a fundo
 

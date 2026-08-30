@@ -20,7 +20,7 @@ if (fs.existsSync(queueFile)) {
     const queue = JSON.parse(fs.readFileSync(queueFile, 'utf-8'));
     console.log(`⏳ Fila com backup pendente: ${queue.length} promoção(ões)`);
     queue.forEach((promo, i) => {
-      console.log(`   ${i + 1}. [${promo.platform}] ${promo.title}`);
+      console.log(`   ${i + 1}. [${promo.urls?.length || 0} link(s)] ${promo.title}`);
     });
   } catch (e) {
     console.log('⚠️  Erro ao ler backup da fila');

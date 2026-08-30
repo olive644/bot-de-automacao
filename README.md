@@ -1,14 +1,15 @@
-# 🚀 Bot de Promoções WhatsApp com Links Afiliados
+# 🚀 Oli - Bot para Promoções no WhatsApp
 
-Um bot inteligente que escuta promoções em grupos-fonte do WhatsApp, converte links para afiliados e os reposta em um grupo-destino com **comportamento completamente humanizado** para evitar banimento.
+O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um grupo de destino, preservando todos os links exatamente como foram recebidos.
 
 ---
 
 ## 📋 Características Principais
 
 ✅ **Escuta promoções** em múltiplos grupos/canais-fonte  
-✅ **Converte links** para afiliados (estrutura preparada para Mercado Livre, Amazon, Shopee, Magazine Luiza)  
-✅ **Comportamento humanizado** — delays aleatórios, simulação de typing  
+✅ **Preserva todos os links originais**, sem conversão de afiliados
+✅ **Identidade própria** — nome Oli - Bot e foto configurável
+✅ **Envio espaçado** — delays aleatórios entre mensagens
 ✅ **Anti-banimento** — fila sequencial, jitter em todos os delays  
 ✅ **Persistência** — recupera promoções não enviadas após restart  
 ✅ **Retry automático** — tenta novamente em caso de falha (backoff exponencial)  
@@ -125,15 +126,13 @@ Mensagem em Grupo-Fonte
     ↓
 Listener: Verifica se tem URL
     ↓
-Extrai: Título, Preço, URL
-    ↓
-Converte Link para Afiliado
+Extrai: Título, Preços e todos os Links
     ↓
 Enfileira Promoção
     ↓
 Fila: Aguarda delay aleatório (2-5 min)
     ↓
-Simula Typing (3-8 segundos)
+Aplica uma pequena pausa antes do envio
     ↓
 Envia no Grupo-Destino
     ↓
@@ -145,7 +144,7 @@ Aguarda delay antes do próximo (anti-banimento)
 O bot implementa várias técnicas para parecer humano:
 
 1. **Delays Aleatórios** — nunca espera o mesmo tempo (2-5 minutos entre mensagens)
-2. **Simulação de Typing** — mostra "digitando..." por 3-8 segundos antes de enviar
+2. **Pausa antes do envio** — evita disparos instantâneos em sequência
 3. **Fila Sequencial** — nunca envia 2 mensagens ao mesmo tempo
 4. **Jitter em Todos os Delays** — intervalos variáveis, nunca padrão
 5. **Detecção de Duplicatas** — evita repostar a mesma promo
@@ -169,7 +168,7 @@ automação/
     ├── services/
     │   ├── whatsapp.js        # Inicialização do client WA + QR
     │   ├── listener.js        # Escuta e filtra mensagens
-    │   ├── affiliate.js       # Converte links para afiliados
+    │   ├── profile.js         # Aplica nome e foto do Oli - Bot
     │   └── queue.js           # Fila com delays + retry
     ├── utils/
     │   ├── delay.js           # randomDelay() humanizado
@@ -210,32 +209,17 @@ Todos os eventos são logados com timestamps. Exemplo:
 
 ---
 
-## 🔗 Integração com Afiliados (Placeholder)
+## 🎨 Identidade do Oli - Bot
 
-Atualmente, o arquivo `src/services/affiliate.js` contém **stubs** para conversão de links. Para integração real:
+A imagem padrão fica em `assets/oli-bot.png`. As opções podem ser alteradas no `.env`:
 
-### Mercado Livre
-
-```javascript
-// TODO: Usar https://developers.mercadolivre.com.br/
-// 1. Obter access_token do seu app de afiliado
-// 2. Extrair item_id da URL
-// 3. Chamar API de geração de link afiliado
+```env
+BOT_NAME=Oli - Bot
+BOT_PROFILE_IMAGE=assets/oli-bot.png
+APPLY_BOT_PROFILE=true
 ```
 
-### Amazon Associates
-
-```javascript
-// TODO: Usar https://affiliate-program.amazon.com.br/
-// Adicionar seu tag de afiliado à URL
-```
-
-### Shopee
-
-```javascript
-// TODO: Usar Shopee Affiliate API
-// Gerar link via API com seu affiliate ID
-```
+O nome e a foto são aplicados à conta do WhatsApp conectada. Contatos que já salvaram o número podem continuar vendo o nome salvo por eles.
 
 ---
 
@@ -324,7 +308,6 @@ npm run list-groups
 ## 📝 Próximas Melhorias (Roadmap)
 
 - [ ] Dashboard web para monitoramento em tempo real
-- [ ] Integração com APIs reais de afiliados
 - [ ] Whitelist/Blacklist de promoções
 - [ ] Suporte a múltiplos grupos-destino
 - [ ] Webhooks para notificações

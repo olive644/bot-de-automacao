@@ -6,7 +6,6 @@
 const config = require('../config');
 const logger = require('../utils/logger');
 const { extractPromoInfo } = require('../utils/regex');
-const { convertLink } = require('./affiliate');
 const { enqueue } = require('./queue');
 
 // Rastrear hashes de mensagens já processadas (últimos 30 min) — evitar duplicatas
@@ -46,7 +45,7 @@ function markAsProcessed(messageHash) {
 
 /**
  * Processa uma mensagem recebida (de grupo ou canal).
- * Extrai promoção, converte link e enfileira.
+ * Extrai a promoção, preserva os links originais e enfileira.
  */
 async function processMessage(message, sourceName) {
   const promoInfo = extractPromoInfo(message.body);
@@ -65,13 +64,9 @@ async function processMessage(message, sourceName) {
 
   logger.info(`[Listener] URL(s) encontrada(s): ${promoInfo.urls.length}`);
 
-  const mainUrl = promoInfo.urls[0];
-  const converted = convertLink(mainUrl);
-
   const promo = {
-    title: promoInfo.title || `Link ${converted.platform}`,
-    affiliateUrl: converted.affiliateUrl,
-    platform: converted.platform,
+    title: promoInfo.title || 'Confira esta oferta',
+    urls: promoInfo.urls,
     prices: promoInfo.prices,
     rawText: promoInfo.rawText,
     sourceGroup: sourceName,

@@ -6,11 +6,11 @@
  */
 
 const { extractPromoInfo } = require('./src/utils/regex');
-const { convertLink } = require('./src/services/affiliate');
-const logger = require('./src/utils/logger');
+const { formatMessage } = require('./src/services/queue');
+const assert = require('node:assert/strict');
 
 console.log('\n' + '='.repeat(60));
-console.log('🧪 TESTE DE REGEX E CONVERSÃO DE LINKS');
+console.log('🧪 TESTE DE REGEX E PRESERVAÇÃO DE LINKS');
 console.log('='.repeat(60) + '\n');
 
 // Exemplos de mensagens de promoção
@@ -32,8 +32,8 @@ const testMessages = [
     text: 'Produto em promoção!\nhttps://www.magazineluiza.com.br/produto/123',
   },
   {
-    name: 'URL simples (plataforma não reconhecida)',
-    text: 'Confira este produto\nhttps://www.exemplo.com.br/item',
+    name: 'Múltiplos links preservados',
+    text: 'Confira estas opções\nhttps://www.exemplo.com.br/item\nhttps://loja.exemplo.com.br/oferta?cupom=OLI10',
   },
 ];
 
@@ -56,11 +56,14 @@ testMessages.forEach((test, idx) => {
   if (info.urls.length > 0) {
     console.log(`   • URLs: ${info.urls.length} encontrada(s)`);
     info.urls.forEach((url, i) => {
-      const converted = convertLink(url);
-      console.log(`     ${i + 1}. Plataforma: ${converted.platform}`);
-      console.log(`        Original:  ${url}`);
-      console.log(`        Afiliado:  ${converted.affiliateUrl}`);
+      console.log(`     ${i + 1}. Original: ${url}`);
     });
+
+    const formatted = formatMessage(info);
+    info.urls.forEach((url) => {
+      assert.ok(formatted.includes(url), `Link original ausente da mensagem: ${url}`);
+    });
+    assert.ok(formatted.includes('Oli - Bot'), 'Assinatura do Oli - Bot ausente');
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');
   }

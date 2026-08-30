@@ -15,6 +15,13 @@ const config = {
   // ID do grupo destino (para onde enviamos as promoções convertidas)
   destGroup: process.env.DEST_GROUP || '',
 
+  // Identidade visual da conta conectada
+  botName: process.env.BOT_NAME || 'Oli - Bot',
+  botProfileImage: process.env.BOT_PROFILE_IMAGE
+    ? path.resolve(__dirname, '../../', process.env.BOT_PROFILE_IMAGE)
+    : path.resolve(__dirname, '../../assets/oli-bot.png'),
+  applyBotProfile: process.env.APPLY_BOT_PROFILE !== 'false',
+
   // Delays entre mensagens na fila (anti-banimento)
   queueDelayMin: parseInt(process.env.QUEUE_DELAY_MIN, 10) || 120000,  // 2 min
   queueDelayMax: parseInt(process.env.QUEUE_DELAY_MAX, 10) || 300000,  // 5 min

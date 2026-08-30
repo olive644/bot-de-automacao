@@ -57,8 +57,7 @@ loadQueueFromDisk();
  *
  * @param {object} promo - Objeto da promoção
  * @param {string} promo.title - Título da promoção
- * @param {string} promo.affiliateUrl - Link de afiliado convertido
- * @param {string} promo.platform - Plataforma detectada
+ * @param {string[]} promo.urls - Links originais da mensagem
  * @param {string[]} promo.prices - Preços encontrados
  * @param {string} promo.rawText - Texto original da mensagem
  */
@@ -67,8 +66,7 @@ function enqueue(promo) {
   logger.info(`[Fila] Promoção adicionada. Tamanho da fila: ${queue.length}`);
   logger.debug(`[Fila] Detalhes:`, {
     title: promo.title,
-    platform: promo.platform,
-    url: promo.affiliateUrl,
+    urls: promo.urls,
   });
 }
 
@@ -80,22 +78,21 @@ function enqueue(promo) {
  * @returns {string} - Mensagem formatada
  */
 function formatMessage(promo) {
-  const parts = [];
+  const parts = ['✨ *OFERTA ENCONTRADA*'];
 
-  // Título (se existir)
   if (promo.title) {
-    parts.push(`🔥 *${promo.title}*`);
+    parts.push(`\n*${promo.title}*`);
   }
 
-  // Preço (se existir)
   if (promo.prices && promo.prices.length > 0) {
     parts.push(`💰 ${promo.prices.join(' → ')}`);
   }
 
-  // Link de afiliado
-  if (promo.affiliateUrl) {
-    parts.push(`\n🔗 ${promo.affiliateUrl}`);
+  if (promo.urls && promo.urls.length > 0) {
+    parts.push(`\n${promo.urls.map((url) => `🔗 ${url}`).join('\n')}`);
   }
+
+  parts.push(`\n_Enviado por ${config.botName}_`);
 
   return parts.join('\n');
 }
@@ -226,4 +223,5 @@ module.exports = {
   getQueueSize,
   getQueueStats,
   saveBeforeExit,
+  formatMessage,
 };

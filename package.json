@@ -1,7 +1,7 @@
 {
   "name": "promo-bot",
   "version": "1.0.0",
-  "description": "Bot gerenciador de promoções e links de afiliados para WhatsApp",
+  "description": "Oli - Bot: encaminhador de promoções para WhatsApp com links originais",
   "main": "index.js",
   "scripts": {
     "postinstall": "patch-package",
