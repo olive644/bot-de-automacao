@@ -39,6 +39,13 @@ const testMessages = [
     name: 'Múltiplos links preservados',
     text: 'Confira estas opções\nhttps://www.exemplo.com.br/item\nhttps://loja.exemplo.com.br/oferta?cupom=OLI10',
   },
+  {
+    name: 'Cupom destacado na mensagem final',
+    text: 'Jogo em promoção\nDe: R$ 199,90\nPor: R$ 89,90\nUse o cupom: JOGA20\nhttps://www.exemplo.com.br/jogo',
+    expectedOriginal: 'R$ 199,90',
+    expectedCurrent: 'R$ 89,90',
+    expectedCoupons: ['JOGA20'],
+  },
 ];
 
 testMessages.forEach((test, idx) => {
@@ -50,6 +57,9 @@ testMessages.forEach((test, idx) => {
   if (Object.hasOwn(test, 'expectedCurrent')) {
     assert.equal(info.originalPrice, test.expectedOriginal);
     assert.equal(info.currentPrice, test.expectedCurrent);
+  }
+  if (Object.hasOwn(test, 'expectedCoupons')) {
+    assert.deepEqual(info.coupons, test.expectedCoupons);
   }
   console.log('📝 Mensagem:');
   console.log('   ' + test.text.replace(/\n/g, '\n   '));
@@ -77,6 +87,11 @@ testMessages.forEach((test, idx) => {
       assert.ok(formatted.includes(`*Por: ${test.expectedCurrent}*`));
     } else if (test.expectedCurrent) {
       assert.ok(formatted.includes(`*Preço: ${test.expectedCurrent}*`));
+    }
+    if (test.expectedCoupons) {
+      test.expectedCoupons.forEach((coupon) => {
+        assert.ok(formatted.includes(`\`${coupon}\``), `Cupom ausente da mensagem: ${coupon}`);
+      });
     }
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');

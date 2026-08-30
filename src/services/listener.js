@@ -90,6 +90,7 @@ async function processMessage(message, sourceName) {
     title: promoInfo.title || 'Confira esta oferta',
     urls: promoInfo.urls,
     prices: promoInfo.prices,
+    coupons: promoInfo.coupons,
     originalPrice: promoInfo.originalPrice,
     currentPrice: promoInfo.currentPrice,
     media,

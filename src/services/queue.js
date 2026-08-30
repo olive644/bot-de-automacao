@@ -60,6 +60,7 @@ loadQueueFromDisk();
  * @param {string} promo.title - Título da promoção
  * @param {string[]} promo.urls - Links originais da mensagem
  * @param {string[]} promo.prices - Preços encontrados
+ * @param {string[]} promo.coupons - Cupons encontrados na mensagem de origem
  * @param {string|null} promo.originalPrice - Preço anterior
  * @param {string|null} promo.currentPrice - Preço atual
  * @param {object|null} promo.media - Imagem em base64
@@ -93,6 +94,11 @@ function formatMessage(promo) {
     parts.push(`🔥 *Por: ${promo.currentPrice}*`);
   } else if (promo.currentPrice) {
     parts.push(`💰 *Preço: ${promo.currentPrice}*`);
+  }
+
+  if (promo.coupons && promo.coupons.length > 0) {
+    const couponText = promo.coupons.map((coupon) => `\`${coupon}\``).join(' | ');
+    parts.push(`🎟️ *Cupom:* ${couponText}`);
   }
 
   if (promo.urls && promo.urls.length > 0) {

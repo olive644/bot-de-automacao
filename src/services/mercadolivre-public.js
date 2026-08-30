@@ -10,6 +10,7 @@ const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
 
 const SEARCH_URL = 'https://api.mercadolibre.com/sites/MLB/search';
+const TOKEN_URL = 'https://api.mercadolibre.com/oauth/token';
 const SEEN_FILE = path.resolve(__dirname, '../../.mercadolivre_seen.json');
 const MAX_SEEN_ITEMS = 5000;
 
@@ -17,6 +18,8 @@ let timer = null;
 let running = false;
 let seen = new Map();
 let nextSearchIndex = 0;
+let applicationToken = null;
+let applicationTokenExpiresAt = 0;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -94,15 +97,53 @@ async function search(query) {
   // promoções com preço anterior, sem fazer uma chamada por produto.
   url.searchParams.set('limit', '50');
 
-  const response = await fetch(url, {
-    headers: { accept: 'application/json', 'user-agent': 'Oli-Bot/1.0' },
-  });
+  let response = await requestSearch(url);
+  if ((response.status === 401 || response.status === 403) && config.mercadoLivreClientId && config.mercadoLivreClientSecret) {
+    logger.info('[Mercado Livre] Catálogo público bloqueado; tentando credencial da aplicação.');
+    const token = await getApplicationToken();
+    response = await requestSearch(url, token);
+  }
   if (!response.ok) {
-    throw new Error(`API respondeu ${response.status} ${response.statusText}`);
+    const body = await response.text().catch(() => '');
+    const detail = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    throw new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
   }
 
   const payload = await response.json();
   return Array.isArray(payload.results) ? payload.results : [];
+}
+
+async function requestSearch(url, token = null) {
+  const headers = {
+    accept: 'application/json',
+    'user-agent': 'Oli-Bot/1.0',
+  };
+  if (token) headers.authorization = `Bearer ${token}`;
+  return fetch(url, { headers });
+}
+
+async function getApplicationToken() {
+  if (applicationToken && applicationTokenExpiresAt - Date.now() > 5 * 60 * 1000) {
+    return applicationToken;
+  }
+
+  const response = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: config.mercadoLivreClientId,
+      client_secret: config.mercadoLivreClientSecret,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.access_token) {
+    throw new Error(`Não foi possível obter credencial da aplicação (${response.status}).`);
+  }
+
+  applicationToken = payload.access_token;
+  applicationTokenExpiresAt = Date.now() + (Number(payload.expires_in) || 6 * 60 * 60) * 1000;
+  return applicationToken;
 }
 
 async function poll() {
@@ -162,6 +203,7 @@ module.exports = {
   getDiscountPercent,
   toPromo,
   selectEligiblePromos,
+  getApplicationToken,
   startMercadoLivrePublicSource,
   stopMercadoLivrePublicSource,
 };

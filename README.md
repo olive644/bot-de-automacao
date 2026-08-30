@@ -250,6 +250,15 @@ ML_PUBLIC_MAX_RESULTS=3
 
 O coletor preserva o link original do produto, só aceita descontos com preço anterior informado pela plataforma e lembra os itens enviados para não repetir a mesma oferta. Ele avalia até 50 resultados por termo, prioriza o maior desconto e alterna a ordem das pesquisas a cada ciclo, evitando que jogos ou hardware fiquem sempre por último.
 
+Se a API responder `401` ou `403`, o bot pode tentar automaticamente a credencial da própria aplicação, sem login de usuário. Gere uma chave nova no painel do Mercado Livre e mantenha-a apenas no `.env` local:
+
+```env
+ML_CLIENT_ID=
+ML_CLIENT_SECRET=
+```
+
+Não use `ML_ACCESS_TOKEN`, `ML_REFRESH_TOKEN` ou URL de redirecionamento para a busca pública.
+
 ## 🎮 Jogos de PC com ITAD
 
 Com uma chave do [IsThereAnyDeal](https://isthereanydeal.com/apps/my/), o bot consulta promoções reais de jogos de PC e mostra a loja, o preço anterior e o atual. A chave fica somente no `.env` local:

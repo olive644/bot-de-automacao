@@ -36,6 +36,25 @@ function extractPrices(text) {
   return matches || [];
 }
 
+/**
+ * Extrai códigos de cupom explicitamente identificados na mensagem.
+ * Exemplos: "Cupom: OLI10", "Use o código GAME20".
+ */
+function extractCoupons(text) {
+  if (!text) return [];
+
+  const couponRegex = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-z0-9][a-z0-9_-]{2,30})\b/gi;
+  const coupons = [];
+  let match;
+  while ((match = couponRegex.exec(text)) !== null) {
+    const coupon = match[1];
+    if (!coupons.some((value) => value.toLowerCase() === coupon.toLowerCase())) {
+      coupons.push(coupon);
+    }
+  }
+  return coupons;
+}
+
 function extractPriceDetails(text, prices = extractPrices(text)) {
   if (!text || prices.length === 0) {
     return { originalPrice: null, currentPrice: null };
@@ -58,13 +77,14 @@ function extractPriceDetails(text, prices = extractPrices(text)) {
  * - Título (primeira linha não-vazia sem URL/preço)
  *
  * @param {string} text - Texto completo da mensagem
- * @returns {{ urls: string[], prices: string[], originalPrice: string|null, currentPrice: string|null, title: string, rawText: string }}
+ * @returns {{ urls: string[], prices: string[], coupons: string[], originalPrice: string|null, currentPrice: string|null, title: string, rawText: string }}
  */
 function extractPromoInfo(text) {
   if (!text) {
     return {
       urls: [],
       prices: [],
+      coupons: [],
       originalPrice: null,
       currentPrice: null,
       title: '',
@@ -74,6 +94,7 @@ function extractPromoInfo(text) {
 
   const urls = extractUrls(text);
   const prices = extractPrices(text);
+  const coupons = extractCoupons(text);
   const { originalPrice, currentPrice } = extractPriceDetails(text, prices);
 
   // Tenta extrair o título: primeira linha que não seja só URL ou espaço
@@ -93,6 +114,7 @@ function extractPromoInfo(text) {
   return {
     urls,
     prices,
+    coupons,
     originalPrice,
     currentPrice,
     title,
@@ -100,4 +122,4 @@ function extractPromoInfo(text) {
   };
 }
 
-module.exports = { extractUrls, extractPrices, extractPriceDetails, extractPromoInfo };
+module.exports = { extractUrls, extractPrices, extractCoupons, extractPriceDetails, extractPromoInfo };
