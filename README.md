@@ -8,7 +8,6 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 
 ✅ **Escuta promoções** em múltiplos grupos/canais-fonte  
 ✅ **Preserva todos os links originais**, sem conversão de afiliados
-✅ **Identidade própria** — nome Oli - Bot e foto configurável
 ✅ **Imagem da promoção** — encaminha fotos recebidas com legenda
 ✅ **Envio espaçado** — delays aleatórios entre mensagens
 ✅ **Anti-banimento** — fila sequencial, jitter em todos os delays  
@@ -180,7 +179,6 @@ automação/
     ├── services/
     │   ├── whatsapp.js        # Inicialização do client WA + QR
     │   ├── listener.js        # Escuta e filtra mensagens
-    │   ├── profile.js         # Aplica nome e foto do Oli - Bot
     │   └── queue.js           # Fila com delays + retry
     ├── utils/
     │   ├── delay.js           # randomDelay() humanizado
@@ -218,20 +216,6 @@ Todos os eventos são logados com timestamps. Exemplo:
 [18:35:12] [INFO] [Fila] Simulando digitação por 5s 234ms...
 [18:35:18] [INFO] [Fila] ✅ Promoção enviada: "iPhone 14 com 30% OFF"
 ```
-
----
-
-## 🎨 Identidade do Oli - Bot
-
-A imagem padrão fica em `assets/oli-bot.png`. As opções podem ser alteradas no `.env`:
-
-```env
-BOT_NAME=Oli - Bot
-BOT_PROFILE_IMAGE=assets/oli-bot.png
-APPLY_BOT_PROFILE=true
-```
-
-O nome e a foto são aplicados à conta do WhatsApp conectada. Contatos que já salvaram o número podem continuar vendo o nome salvo por eles.
 
 ---
 
@@ -369,6 +353,8 @@ npm run list-groups
 # 2. Verifique se o bot está membro do grupo-fonte
 # 3. Teste com LOG_LEVEL=DEBUG no .env
 ```
+
+O bot escuta os eventos `message` e `message_create`. Ao iniciar, confira os logs `Fonte reconhecida`. Se aparecer `Fonte não encontrada`, execute novamente `npm run list-groups` e substitua o ID no `.env`.
 
 ### Bot foi banido
 

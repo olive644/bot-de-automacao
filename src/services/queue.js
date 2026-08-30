@@ -127,8 +127,6 @@ function formatMessage(promo) {
     parts.push(`\n${promo.urls.map((url) => `🔗 ${url}`).join('\n')}`);
   }
 
-  parts.push(`\n_Enviado por ${config.botName}_`);
-
   return parts.join('\n');
 }
 

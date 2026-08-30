@@ -4,6 +4,7 @@
 // ============================================
 
 const path = require('path');
+const { normalizeChatId } = require('../utils/chat-id');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 function parseNumberList(value, fallback) {
@@ -16,18 +17,11 @@ function parseNumberList(value, fallback) {
 const config = {
   // IDs dos grupos fonte (de onde capturamos promoções)
   sourceGroups: process.env.SOURCE_GROUPS
-    ? process.env.SOURCE_GROUPS.split(',').map((id) => id.trim())
+    ? process.env.SOURCE_GROUPS.split(',').map(normalizeChatId).filter(Boolean)
     : [],
 
   // ID do grupo destino (para onde enviamos as promoções convertidas)
-  destGroup: process.env.DEST_GROUP || '',
-
-  // Identidade visual da conta conectada
-  botName: process.env.BOT_NAME || 'Oli - Bot',
-  botProfileImage: process.env.BOT_PROFILE_IMAGE
-    ? path.resolve(__dirname, '../../', process.env.BOT_PROFILE_IMAGE)
-    : path.resolve(__dirname, '../../assets/oli-bot.png'),
-  applyBotProfile: process.env.APPLY_BOT_PROFILE !== 'false',
+  destGroup: normalizeChatId(process.env.DEST_GROUP),
 
   // Catálogo público do Mercado Livre — não requer OAuth ou tokens.
   mercadoLivrePublicEnabled: process.env.ML_PUBLIC_ENABLED === 'true',

@@ -13,7 +13,6 @@ const config = require('./src/config');
 const client = require('./src/services/whatsapp');
 const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
-const { configureBotProfile } = require('./src/services/profile');
 const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require('./src/services/mercadolivre-public');
 const { startItadSource, stopItadSource } = require('./src/services/itad');
 const logger = require('./src/utils/logger');
@@ -26,6 +25,9 @@ function validateConfig() {
   }
   if (!config.destGroup) {
     logger.warn('DEST_GROUP não configurado no .env — o bot não vai enviar promoções.');
+  }
+  if (config.destGroup && config.sourceGroups.includes(config.destGroup)) {
+    logger.warn('DEST_GROUP também está em SOURCE_GROUPS. Remova-o das fontes para evitar reenvios em loop.');
   }
   if (config.mercadoLivrePublicEnabled && config.mercadoLivreSearches.length === 0) {
     logger.warn('ML_PUBLIC_ENABLED está ativo, mas ML_PUBLIC_SEARCHES não possui termos para pesquisar.');
@@ -44,9 +46,8 @@ client.once('ready', async () => {
   logger.info(`Grupo destino: ${config.destGroup || 'NÃO CONFIGURADO'}`);
   logger.info('='.repeat(50));
 
-  await configureBotProfile(client);
-
-  // Registra o listener de mensagens
+  // Registra o listener imediatamente. O bot nunca altera nome ou foto da
+  // conta do WhatsApp conectada.
   registerListener(client);
 
   // Inicia o processador de fila (roda em loop contínuo)

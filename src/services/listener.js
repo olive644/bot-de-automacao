@@ -6,6 +6,7 @@
 const config = require('../config');
 const logger = require('../utils/logger');
 const { extractPromoInfo } = require('../utils/regex');
+const { normalizeChatId } = require('../utils/chat-id');
 const { enqueue } = require('./queue');
 
 // Rastrear hashes de mensagens já processadas (últimos 30 min) — evitar duplicatas
@@ -47,8 +48,27 @@ function markAsProcessed(messageHash) {
  * Processa uma mensagem recebida (de grupo ou canal).
  * Extrai a promoção, preserva os links originais e enfileira.
  */
-async function processMessage(message, sourceName) {
-  const promoInfo = extractPromoInfo(message.body);
+function getMessageText(message) {
+  const candidates = [message?.body, message?._data?.caption, message?._data?.body];
+  const primary = candidates.find((value) => typeof value === 'string' && value.trim()) || '';
+  const links = Array.isArray(message?.links)
+    ? message.links
+      .map((entry) => typeof entry === 'string' ? entry : entry?.link || entry?.href || entry?.url)
+      .filter((url) => typeof url === 'string' && url.trim() && !primary.includes(url))
+    : [];
+  return [primary.trim(), ...links].filter(Boolean).join('\n');
+}
+
+function resolveConfiguredSource(message, sourceGroups = config.sourceGroups) {
+  const configured = new Set(sourceGroups
+    .map(normalizeChatId)
+    .filter((id) => id && id !== config.destGroup));
+  const candidates = [message?.from, message?.to].map(normalizeChatId).filter(Boolean);
+  return candidates.find((id) => configured.has(id)) || '';
+}
+
+async function processMessage(message, sourceName, sourceId, text) {
+  const promoInfo = extractPromoInfo(text);
 
   if (promoInfo.urls.length === 0) {
     logger.debug('[Listener] Mensagem sem URL — ignorando.');
@@ -56,11 +76,15 @@ async function processMessage(message, sourceName) {
   }
 
   // Detecta duplicata
-  const messageHash = hashMessage(message.body, message.from);
+  const messageHash = hashMessage(text, sourceId);
   if (isDuplicate(messageHash)) {
     logger.debug('[Listener] ⚠️  Mensagem duplicada detectada — ignorando.');
     return;
   }
+
+  // Marca antes de qualquer await para impedir duplicação quando os eventos
+  // `message` e `message_create` chegarem quase ao mesmo tempo.
+  markAsProcessed(messageHash);
 
   logger.info(`[Listener] URL(s) encontrada(s): ${promoInfo.urls.length}`);
 
@@ -100,8 +124,25 @@ async function processMessage(message, sourceName) {
     receivedAt: new Date().toISOString(),
   };
 
-  markAsProcessed(messageHash);
   enqueue(promo);
+}
+
+async function verifyConfiguredSources(client) {
+  if (config.sourceGroups.length === 0 || typeof client.getChats !== 'function') return;
+  try {
+    const chats = await client.getChats();
+    const known = new Map(chats.map((chat) => [normalizeChatId(chat?.id), chat]));
+    for (const sourceId of config.sourceGroups) {
+      const chat = known.get(sourceId);
+      if (chat) {
+        logger.info(`[Listener] Fonte reconhecida: ${chat.name || sourceId} (${sourceId})`);
+      } else {
+        logger.warn(`[Listener] Fonte não encontrada nesta sessão: ${sourceId}. Confirme com npm run list-groups.`);
+      }
+    }
+  } catch (error) {
+    logger.warn('[Listener] Não foi possível conferir os grupos configurados:', error.message);
+  }
 }
 
 /**
@@ -114,45 +155,48 @@ async function processMessage(message, sourceName) {
  * @param {import('whatsapp-web.js').Client} client - Client do WhatsApp
  */
 function registerListener(client) {
-  // --- Listener para grupos e canais ---
-  client.on('message', async (message) => {
+  const handleMessage = async (message) => {
     try {
-      // Mensagens de canal chegam com from terminando em @newsletter
-      // Evita chamar getChat() que pode falhar em alguns tipos de mensagem
-      const fromId = message.from || '';
-      const isChannel = fromId.endsWith('@newsletter');
-      const isGroup = fromId.endsWith('@g.us');
+      const sourceId = resolveConfiguredSource(message);
+      if (!sourceId) return;
+
+      const isChannel = sourceId.endsWith('@newsletter');
+      const isGroup = sourceId.endsWith('@g.us');
 
       if (!isGroup && !isChannel) return;
 
-      // Verifica se está na lista de fontes configuradas
-      if (!config.sourceGroups.includes(fromId)) return;
-
-      // Ignora mensagens sem texto (imagens sem legenda, stickers, etc.)
-      if (!message.body || message.body.trim() === '') {
+      const text = getMessageText(message);
+      if (!text) {
         logger.debug('[Listener] Mensagem sem texto — ignorando.');
         return;
       }
 
       // Tenta obter o nome do chat para o log (não crítico)
-      let sourceName = fromId;
+      let sourceName = sourceId;
       try {
         const chat = await message.getChat();
-        sourceName = chat.name || fromId;
+        sourceName = chat.name || sourceId;
       } catch (_) {
         // Se falhar, usa o ID como fallback — não interrompe o fluxo
       }
 
       logger.info(`[Listener] Mensagem recebida em: ${sourceName} (${isChannel ? 'canal' : 'grupo'})`);
-      logger.debug(`[Listener] Conteúdo: ${message.body}`);
+      logger.debug(`[Listener] Conteúdo: ${text}`);
 
-      await processMessage(message, sourceName);
+      await processMessage(message, sourceName, sourceId, text);
     } catch (error) {
       logger.error('[Listener] Erro ao processar mensagem:', error.message);
     }
-  });
+  };
+
+  // Algumas versões do WhatsApp Web entregam canais/grupos somente em um dos
+  // eventos. Escutar ambos aumenta a compatibilidade; o hash evita duplicatas.
+  client.on('message', handleMessage);
+  client.on('message_create', handleMessage);
 
   logger.info(`[Listener] Escutando ${config.sourceGroups.length} fonte(s) configurada(s).`);
+  config.sourceGroups.forEach((sourceId, index) => logger.info(`[Listener] Fonte ${index + 1}: ${sourceId}`));
+  verifyConfiguredSources(client);
 }
 
-module.exports = { registerListener };
+module.exports = { registerListener, getMessageText, resolveConfiguredSource, processMessage };

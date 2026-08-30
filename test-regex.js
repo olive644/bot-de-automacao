@@ -92,7 +92,7 @@ testMessages.forEach((test, idx) => {
     info.urls.forEach((url) => {
       assert.ok(formatted.includes(url), `Link original ausente da mensagem: ${url}`);
     });
-    assert.ok(formatted.includes('Oli - Bot'), 'Assinatura do Oli - Bot ausente');
+    assert.doesNotMatch(formatted, /Enviado por|Oli\s*-?\s*Bot/i, 'A mensagem não deve conter assinatura automática');
     if (test.expectedOriginal) {
       assert.ok(formatted.includes(`~De: ${test.expectedOriginal}~`));
       assert.ok(formatted.includes(`*Por: ${test.expectedCurrent}*`));
