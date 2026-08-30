@@ -19,6 +19,7 @@
     "test:itad": "node test-itad.js",
     "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad",
     "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
+    "install:browser": "puppeteer browsers install chrome",
     "dev": "node --watch index.js"
   },
   "keywords": [],

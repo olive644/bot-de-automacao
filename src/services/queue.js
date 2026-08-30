@@ -19,6 +19,17 @@ let isProcessing = false;
 // Arquivo de persistência da fila
 const QUEUE_FILE = path.join(__dirname, '../../.queue_backup.json');
 
+function isBlockedPromotion(promo) {
+  const text = [
+    promo?.title,
+    promo?.sourceGroup,
+    promo?.rawText,
+    ...(Array.isArray(promo?.urls) ? promo.urls : []),
+  ].filter(Boolean).join(' ');
+
+  return /\bfanatical\b/i.test(text);
+}
+
 /**
  * Carrega fila do arquivo de backup (se existir).
  * Útil para recuperar promoções após um restart.
@@ -27,8 +38,11 @@ function loadQueueFromDisk() {
   try {
     if (fs.existsSync(QUEUE_FILE)) {
       const data = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf-8'));
-      queue.push(...data);
-      logger.info(`[Fila] ${data.length} promoção(ões) restaurada(s) do backup.`);
+      const allowed = data.filter((promo) => !isBlockedPromotion(promo));
+      queue.push(...allowed);
+      const discarded = data.length - allowed.length;
+      logger.info(`[Fila] ${allowed.length} promoção(ões) restaurada(s) do backup.`);
+      if (discarded > 0) logger.info(`[Fila] ${discarded} oferta(s) da Fanatical removida(s) do backup.`);
       fs.unlinkSync(QUEUE_FILE);
     }
   } catch (error) {
@@ -68,12 +82,17 @@ loadQueueFromDisk();
  * @param {string} promo.rawText - Texto original da mensagem
  */
 function enqueue(promo) {
+  if (isBlockedPromotion(promo)) {
+    logger.info(`[Fila] Oferta da Fanatical ignorada: ${promo?.title || 'sem título'}`);
+    return false;
+  }
   queue.push(promo);
   logger.info(`[Fila] Promoção adicionada. Tamanho da fila: ${queue.length}`);
   logger.debug(`[Fila] Detalhes:`, {
     title: promo.title,
     urls: promo.urls,
   });
+  return true;
 }
 
 /**
@@ -194,6 +213,11 @@ async function startProcessing(client) {
       const promo = queue.shift();
       logger.info(`[Fila] Processando promoção. Restam ${queue.length} na fila.`);
 
+      if (isBlockedPromotion(promo)) {
+        logger.info(`[Fila] Oferta antiga da Fanatical descartada: ${promo?.title || 'sem título'}`);
+        continue;
+      }
+
       try {
         await sendPromo(client, promo);
       } catch (error) {
@@ -254,4 +278,5 @@ module.exports = {
   getQueueStats,
   saveBeforeExit,
   formatMessage,
+  isBlockedPromotion,
 };

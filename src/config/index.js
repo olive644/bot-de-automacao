@@ -38,7 +38,10 @@ const config = {
   mercadoLivreMinDiscount: Math.min(95, Math.max(1, parseInt(process.env.ML_PUBLIC_MIN_DISCOUNT, 10) || 20)),
   mercadoLivreMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_RESULTS, 10) || 3)),
   mercadoLivreMaxPerSearch: Math.min(3, Math.max(1, parseInt(process.env.ML_PUBLIC_MAX_PER_SEARCH, 10) || 1)),
-  mercadoLivreWebFallbackEnabled: process.env.ML_WEB_FALLBACK_ENABLED === 'true',
+  // A API pública costuma responder 403 para aplicações sem política de
+  // catálogo. Por isso o navegador público é o modo padrão; só é desligado
+  // quando a variável for explicitamente `false`.
+  mercadoLivreWebFallbackEnabled: process.env.ML_WEB_FALLBACK_ENABLED !== 'false',
   // Fallback opcional para bloqueios 401/403 do catálogo público.
   mercadoLivreClientId: process.env.ML_CLIENT_ID || '',
   mercadoLivreClientSecret: process.env.ML_CLIENT_SECRET || '',

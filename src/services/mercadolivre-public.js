@@ -20,7 +20,6 @@ let seen = new Map();
 let nextSearchIndex = 0;
 let applicationToken = null;
 let applicationTokenExpiresAt = 0;
-let policyBlocked = false;
 let webBrowser = null;
 let webPage = null;
 
@@ -94,6 +93,13 @@ function selectEligiblePromos(items) {
 }
 
 async function search(query) {
+  // O endpoint de catálogo do Mercado Livre está devolvendo 403 por política.
+  // Quando o fallback estiver ligado, usamos diretamente a página pública e
+  // não fazemos uma chamada que já sabemos que será recusada.
+  if (config.mercadoLivreWebFallbackEnabled) {
+    return searchWebPage(query);
+  }
+
   const url = new URL(SEARCH_URL);
   url.searchParams.set('q', query);
   // A API não ordena por desconto. Avaliamos uma amostra maior para encontrar
@@ -122,7 +128,7 @@ async function search(query) {
       return searchWebPage(query);
     }
     const error = new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
-    if (response.status === 403 && /PA_UNAUTHORIZED_RESULT_FROM_POLICIES|blocked_by/i.test(body)) {
+    if (response.status === 403 && /PA_UNAUTHORIZED_RESULT_FROM_POLICIES|blocked_by|forbidden/i.test(body)) {
       error.code = 'ML_POLICY_UNAUTHORIZED';
     }
     throw error;
@@ -141,13 +147,56 @@ function buildWebSearchUrl(query) {
   return `https://lista.mercadolivre.com.br/${slug}`;
 }
 
+function findInstalledBrowser() {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+  ];
+
+  if (process.platform === 'win32') {
+    const programFiles = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)']].filter(Boolean);
+    for (const base of programFiles) {
+      candidates.push(
+        path.join(base, 'Google/Chrome/Application/chrome.exe'),
+        path.join(base, 'Microsoft/Edge/Application/msedge.exe')
+      );
+    }
+    if (process.env.LOCALAPPDATA) {
+      candidates.push(
+        path.join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
+        path.join(process.env.LOCALAPPDATA, 'Microsoft/Edge/Application/msedge.exe')
+      );
+    }
+  } else if (process.platform === 'darwin') {
+    candidates.push(
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+    );
+  } else {
+    candidates.push('/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge');
+  }
+
+  return candidates.filter(Boolean).find((candidate) => fs.existsSync(candidate)) || null;
+}
+
 async function getWebPage() {
   if (webPage && !webPage.isClosed()) return webPage;
   const puppeteer = require('puppeteer');
-  webBrowser = await puppeteer.launch({
+  const launchOptions = {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  });
+  };
+  const executablePath = findInstalledBrowser();
+  if (executablePath) launchOptions.executablePath = executablePath;
+
+  try {
+    webBrowser = await puppeteer.launch(launchOptions);
+  } catch (error) {
+    if (/could not find chrome|browser was not found/i.test(error.message)) {
+      throw new Error('Chrome/Edge não encontrado. Execute `npm run install:browser` e reinicie o bot.');
+    }
+    throw error;
+  }
   webPage = await webBrowser.newPage();
   await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
   await webPage.setViewport({ width: 1365, height: 900 });
@@ -226,7 +275,7 @@ async function getApplicationToken() {
 }
 
 async function poll() {
-  if (running || policyBlocked || !config.mercadoLivrePublicEnabled || config.mercadoLivreSearches.length === 0) return;
+  if (running || !config.mercadoLivrePublicEnabled || config.mercadoLivreSearches.length === 0) return;
   running = true;
 
   try {
@@ -251,14 +300,7 @@ async function poll() {
     if (added > 0) saveSeen();
     logger.info(`[Mercado Livre] Consulta concluída: ${added} nova(s) oferta(s) elegível(is).`);
   } catch (error) {
-    if (error.code === 'ML_POLICY_UNAUTHORIZED') {
-      policyBlocked = true;
-      if (timer) clearInterval(timer);
-      timer = null;
-      logger.warn('[Mercado Livre] Aplicação sem política para pesquisar produtos. Coletor desativado nesta execução; grupos-fonte e ITAD continuam ativos.');
-    } else {
-      logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);
-    }
+    logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);
   } finally {
     running = false;
   }
@@ -273,7 +315,8 @@ function startMercadoLivrePublicSource() {
   if (timer) return;
 
   loadSeen();
-  logger.info(`[Mercado Livre] Coletor público ativo: ${config.mercadoLivreSearches.length} busca(s), a cada ${config.mercadoLivrePollMinutes} min.`);
+  const mode = config.mercadoLivreWebFallbackEnabled ? 'página pública' : 'API';
+  logger.info(`[Mercado Livre] Coletor ativo via ${mode}: ${config.mercadoLivreSearches.length} busca(s), a cada ${config.mercadoLivrePollMinutes} min.`);
   poll();
   timer = setInterval(poll, config.mercadoLivrePollMinutes * 60 * 1000);
 }
@@ -294,6 +337,7 @@ module.exports = {
   selectEligiblePromos,
   getApplicationToken,
   buildWebSearchUrl,
+  findInstalledBrowser,
   startMercadoLivrePublicSource,
   stopMercadoLivrePublicSource,
 };

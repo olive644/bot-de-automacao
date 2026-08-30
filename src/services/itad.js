@@ -12,6 +12,7 @@ const { enqueue } = require('./queue');
 const DEALS_URL = 'https://api.isthereanydeal.com/deals/v2';
 const SEEN_FILE = path.resolve(__dirname, '../../.itad_seen.json');
 const MAX_SEEN_ITEMS = 5000;
+const BLOCKED_SHOP_PATTERN = /\bfanatical\b/i;
 
 let timer = null;
 let running = false;
@@ -33,6 +34,20 @@ function toPromo(item) {
   const cut = Number(deal.cut);
   const url = deal.url;
   const title = item?.title;
+  const shopId = Number(deal.shop?.id);
+  const shopName = deal.shop?.name || '';
+
+  // O parâmetro `shops` da API nem sempre foi suficiente para impedir lojas
+  // indesejadas. A validação local torna a lista do .env obrigatória e também
+  // bloqueia Fanatical pelo nome/URL, mesmo se a API retornar dados incorretos.
+  if (
+    !Number.isInteger(shopId)
+    || (config.itadShops.length > 0 && !config.itadShops.includes(shopId))
+    || BLOCKED_SHOP_PATTERN.test(shopName)
+    || /(?:^|\.)fanatical\.com(?:\/|$)/i.test(String(url))
+  ) {
+    return null;
+  }
 
   if (config.itadExcludeBundles && (item?.type && item.type !== 'game' || /\b(?:bundle|masterclass|e[- ]?learning|course|curso)\b/i.test(title || ''))) {
     return null;
@@ -43,7 +58,7 @@ function toPromo(item) {
   }
 
   const currency = deal.price?.currency || deal.regular?.currency || 'BRL';
-  const shop = deal.shop?.name || 'loja parceira';
+  const shop = shopName;
   const originalPrice = formatCurrency(regular, currency);
   const currentPrice = formatCurrency(price, currency);
 
@@ -59,8 +74,8 @@ function toPromo(item) {
     sourceGroup: 'IsThereAnyDeal',
     receivedAt: new Date().toISOString(),
     discountPercent: cut,
-    shopId: Number(deal.shop?.id) || null,
-    preferredShop: config.itadPrimaryShops.includes(Number(deal.shop?.id)),
+    shopId,
+    preferredShop: config.itadPrimaryShops.includes(shopId),
   };
 }
 
