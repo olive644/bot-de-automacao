@@ -40,6 +40,16 @@ const config = {
   // baixada na hora do envio, não na coleta.
   sendProductImages: process.env.SEND_PRODUCT_IMAGES !== 'false',
 
+  // Marca d'água aplicada em toda imagem que vai para o grupo de destino,
+  // venha ela dos coletores ou dos grupos de origem.
+  watermarkEnabled: process.env.WATERMARK_ENABLED !== 'false',
+  watermarkText: process.env.WATERMARK_TEXT || 'OliBot',
+  // Simbolo do Oli ao lado do texto. Vazio deixa a marca so com o texto.
+  watermarkLogo: process.env.WATERMARK_LOGO === ''
+    ? null
+    : path.resolve(__dirname, '../../', process.env.WATERMARK_LOGO || 'assets/oli-logo.png'),
+  watermarkQuality: Math.min(100, Math.max(40, parseInt(process.env.WATERMARK_QUALITY, 10) || 85)),
+
   // Histórico de preço: só publica oferta que chegue perto do menor valor
   // que o bot já viu, em vez de confiar no "de:" anunciado pela plataforma.
   priceHistoryEnabled: process.env.PRICE_HISTORY_ENABLED !== 'false',

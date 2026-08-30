@@ -155,9 +155,13 @@ function toOfferItem(entry) {
 
 /**
  * O feed traz só o id da foto; a URL é montada a partir dele.
+ *
+ * O sufixo -O.jpg em vez de -F.webp é intencional: a CDN do Mercado
+ * Livre devolve WEBP mesmo quando o cabeçalho pede jpeg, e a marca
+ * d'água não abre WEBP. Pela URL, ela entrega JPEG.
  */
 function buildPictureUrl(pictureId) {
-  return pictureId ? `https://http2.mlstatic.com/D_NQ_NP_2X_${pictureId}-F.webp` : null;
+  return pictureId ? `https://http2.mlstatic.com/D_NQ_NP_2X_${pictureId}-O.jpg` : null;
 }
 
 /**

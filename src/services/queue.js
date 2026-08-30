@@ -10,6 +10,7 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { randomDelay, formatMs } = require('../utils/delay');
 const { downloadImage } = require('../utils/media');
+const { applyWatermark } = require('../utils/watermark');
 
 // Fila FIFO interna — armazena as promoções pendentes
 const queue = [];
@@ -207,11 +208,15 @@ async function sendPromo(client, promo, attempt = 1) {
     }
 
     if (promo.media?.data && promo.media?.mimetype) {
+      // Aqui é por onde passa toda imagem que sai daqui, venha ela dos
+      // coletores ou dos grupos de origem. Marcar neste ponto garante que
+      // nenhuma escape sem a marca.
+      const comMarca = await applyWatermark(promo.media);
       try {
         const media = new MessageMedia(
-          promo.media.mimetype,
-          promo.media.data,
-          promo.media.filename || 'oferta.jpg'
+          comMarca.mimetype,
+          comMarca.data,
+          comMarca.filename || 'oferta.jpg'
         );
         await client.sendMessage(config.destGroup, media, { caption: message });
       } catch (mediaError) {

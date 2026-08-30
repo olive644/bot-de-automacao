@@ -10,8 +10,12 @@ const logger = require('./logger');
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 20000;
+// Pedimos só jpeg e png de propósito. Com "image/avif,image/webp" na
+// frente, as CDNs negociam para esses formatos — e a marca d'água não
+// consegue abri-los. O AliExpress, por exemplo, devolve AVIF quando a
+// gente aceita, e JPEG quando não aceita.
 const HEADERS = {
-  accept: 'image/avif,image/webp,image/png,image/jpeg,*/*',
+  accept: 'image/jpeg,image/png',
   'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 };
 

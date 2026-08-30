@@ -82,7 +82,9 @@ assert.deepEqual(offers[0], {
   permalink: 'https://www.mercadolivre.com.br/monitor-gamer/p/MLB111',
   price: 700,
   original_price: 1000,
-  imageUrl: 'https://http2.mlstatic.com/D_NQ_NP_2X_808703-MLA99523580704_122025-F.webp',
+  // -O.jpg, e nao -F.webp: a marca d'agua nao abre WEBP e a CDN do
+  // Mercado Livre ignora o cabecalho que pede jpeg.
+  imageUrl: 'https://http2.mlstatic.com/D_NQ_NP_2X_808703-MLA99523580704_122025-O.jpg',
 });
 assert.equal(offers[1].original_price, null);
 // Card sem foto não pode inventar URL de imagem.

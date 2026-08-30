@@ -17,6 +17,7 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Autodiagnóstico** — avisa quando uma fonte para de entregar
 ✅ **Histórico de preço** — descarta desconto inflado contra preço-âncora
 ✅ **Foto do produto** — coletores enviam imagem junto com a oferta
+✅ **Marca d'água do Oli** — símbolo e nome em toda imagem que sai
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
 ✅ **Telegram como fonte (opcional)** — grupos via bot do @BotFather
@@ -379,6 +380,43 @@ Na primeira vez que um produto aparece não há com o que comparar, e ele passa 
 ```
 
 O histórico é por fonte: o mesmo id em plataformas diferentes não se mistura.
+
+---
+
+## 🏷️ Marca d'água do Oli
+
+Toda imagem que vai para o grupo de destino recebe a marca do Oli no canto inferior direito — o símbolo ao lado de **OliBot**. Vale para as fotos dos coletores e também para as que chegam dos grupos de origem.
+
+```env
+WATERMARK_ENABLED=true
+WATERMARK_TEXT=OliBot
+WATERMARK_LOGO=assets/oli-logo.png
+WATERMARK_QUALITY=85
+```
+
+Deixe `WATERMARK_LOGO` vazio para a marca sair só com o texto.
+
+### Etiqueta compacta, não faixa
+
+A primeira versão usava uma faixa de ponta a ponta no rodapé. Ficou ruim: muita foto de produto já traz banner do vendedor ali embaixo, e a faixa por cima virava sopa — a marca brigava com o texto que já estava na imagem.
+
+A etiqueta cobre só o necessário e fica legível sobre qualquer fundo, claro ou escuro.
+
+### Por que os coletores pedem JPEG
+
+O jimp, que faz a composição, lê JPEG e PNG — não lê WEBP nem AVIF. Isso mudou como as imagens são baixadas:
+
+| Fonte | Antes | Agora |
+| --- | --- | --- |
+| AliExpress | AVIF (negociado pelo cabeçalho `accept`) | JPEG, pedindo só `image/jpeg,image/png` |
+| Mercado Livre | WEBP | JPEG, trocando o sufixo da URL para `-O.jpg` |
+| Telegram | JPEG | JPEG |
+
+O Mercado Livre é o teimoso: devolve WEBP mesmo quando o cabeçalho pede outra coisa. Pela URL, entrega JPEG.
+
+### Falhar na marca nunca segura a oferta
+
+Formato sem suporte, arquivo de símbolo ausente, imagem corrompida — em todos os casos a promoção sai com a imagem original em vez de não sair. Marca d'água é acabamento, não requisito.
 
 ---
 
