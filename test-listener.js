@@ -1,7 +1,19 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { normalizeChatId } = require('./src/utils/chat-id');
 const { getMessageText, resolveConfiguredSource, processMessage, registerListener } = require('./src/services/listener');
 const { formatMessage, getQueueSize } = require('./src/services/queue');
+
+// Este teste enfileira de verdade, e a fila passou a gravar em disco a cada
+// enfileiramento. Sem preservar e devolver o backup, rodar a suíte injeta
+// promoções falsas na fila de produção — e o bot as envia ao grupo.
+const QUEUE_FILE = path.resolve(__dirname, '.queue_backup.json');
+const filaAntes = fs.existsSync(QUEUE_FILE) ? fs.readFileSync(QUEUE_FILE, 'utf8') : null;
+process.on('exit', () => {
+  if (filaAntes === null) { try { fs.unlinkSync(QUEUE_FILE); } catch (_) {} }
+  else fs.writeFileSync(QUEUE_FILE, filaAntes, 'utf8');
+});
 
 const source = '120363123456789@g.us';
 
