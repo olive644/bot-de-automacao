@@ -356,7 +356,9 @@ A Vercel executa funções serverless: elas sobem, respondem e morrem, com dura�
 
 ### O que funciona
 
-O `Dockerfile` na raiz serve para Railway, Render, Fly.io e qualquer VPS com Docker. Ele já instala as bibliotecas de sistema que o Chrome headless exige no Debian slim.
+**Railway é o caminho recomendado — o passo a passo completo está em [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md).**
+
+O `Dockerfile` e o `railway.json` na raiz também servem para Render, Fly.io e qualquer VPS com Docker. A imagem já instala as bibliotecas de sistema que o Chrome headless exige no Debian slim.
 
 Em qualquer um desses serviços, dois cuidados:
 

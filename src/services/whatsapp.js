@@ -5,6 +5,7 @@
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
+const qrcodeTerminal = require('qrcode-terminal');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
@@ -34,6 +35,13 @@ const client = new Client({
 
 // Gera QR Code como imagem PNG para fácil escaneamento
 client.on('qr', async (qr) => {
+  // Em servidor não há tela nem como abrir arquivo. Sem o desenho no log,
+  // não existe forma de autenticar um deploy no Railway ou em VPS.
+  logger.info('==================================================');
+  logger.info('QR CODE — aponte a câmera do WhatsApp para o desenho abaixo:');
+  logger.info('==================================================');
+  qrcodeTerminal.generate(qr, { small: true });
+
   const qrPath = path.resolve(__dirname, '../../qrcode.png');
 
   try {
@@ -44,17 +52,17 @@ client.on('qr', async (qr) => {
       margin: 3,
       color: { dark: '#000000', light: '#ffffff' },
     });
+    logger.info(`Também salvo como imagem em: ${qrPath}`);
 
-    logger.info('==================================================');
-    logger.info('QR CODE GERADO! Abra o arquivo para escanear:');
-    logger.info(`→ ${qrPath}`);
-    logger.info('==================================================');
-
-    // Abre automaticamente no Windows
-    const { exec } = require('child_process');
-    exec(`start "" "${qrPath}"`);
+    // Abrir o arquivo sozinho só faz sentido no Windows de quem desenvolve.
+    // Em container Linux o comando não existe e a falha passaria calada.
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      exec(`start "" "${qrPath}"`);
+    }
   } catch (err) {
     logger.error('Erro ao gerar QR Code PNG:', err.message);
+    logger.info('Use o desenho acima, no log, para escanear.');
   }
 });
 
