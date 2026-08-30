@@ -116,9 +116,27 @@ function isDivulgationLink(url) {
   return lista.some((dominio) => texto.includes(String(dominio).toLowerCase()));
 }
 
+/**
+ * O canal também assina os posts com o site dele: @tosemkit publica
+ * tosemkit.com.br no rodapé. Nenhuma lista fixa daria conta, porque o
+ * domínio muda a cada canal acrescentado. O nome do canal já basta — link
+ * cujo domínio contém esse nome é divulgação, não o produto.
+ */
+function isChannelOwnLink(url, channel) {
+  const nome = String(channel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Nome curto casaria com domínio alheio por acidente.
+  if (nome.length < 4) return false;
+  try {
+    const host = new URL(String(url)).hostname.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return host.includes(nome);
+  } catch (_) {
+    return false;
+  }
+}
+
 function toPromo(message, channelTitle) {
   const info = extractPromoInfo(message.text);
-  const urls = info.urls.filter((url) => !isDivulgationLink(url));
+  const urls = info.urls.filter((url) => !isDivulgationLink(url) && !isChannelOwnLink(url, message.channel));
   // Sem link de produto não há oferta — mesmo que o post tivesse links.
   if (urls.length === 0) return null;
 
@@ -261,6 +279,7 @@ function stopTelegramWebSource() {
 
 module.exports = {
   normalizeChannel,
+  isChannelOwnLink,
   decodeEntities,
   stripTags,
   parseMessages,

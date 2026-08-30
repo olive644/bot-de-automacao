@@ -5,6 +5,12 @@ const path = require('node:path');
 const { normalizeImageUrl } = require('./src/utils/media');
 const priceHistory = require('./src/services/price-history');
 const health = require('./src/services/health');
+const dedupe = require('./src/services/dedupe');
+const { preserveState } = require('./test-helpers');
+
+// Todos os arquivos de estado sao preservados de uma vez pelo helper.
+preserveState();
+dedupe.resetForTests();
 
 // ---------- imagem ----------
 // O AliExpress devolve a URL sem protocolo.
@@ -16,25 +22,6 @@ assert.equal(normalizeImageUrl(''), null);
 assert.equal(normalizeImageUrl(null), null);
 
 // ---------- histórico de preço ----------
-// O módulo grava em disco; o arquivo real é preservado e devolvido no fim,
-// para o teste não sujar o histórico de produção.
-// O mesmo vale para o .health.json: sem esta guarda, rodar os testes
-// injetava ciclos falsos no autodiagnóstico e o relatório passava a acusar
-// falhas que nunca aconteceram — justamente o alarme falso que ele deveria
-// evitar.
-const ARQUIVOS_DE_ESTADO = ['.price_history.json', '.health.json']
-  .map((nome) => path.resolve(__dirname, nome));
-const estadoAntes = new Map(ARQUIVOS_DE_ESTADO.map((arquivo) => [
-  arquivo,
-  fs.existsSync(arquivo) ? fs.readFileSync(arquivo, 'utf8') : null,
-]));
-process.on('exit', () => {
-  for (const [arquivo, conteudo] of estadoAntes) {
-    if (conteudo === null) { try { fs.unlinkSync(arquivo); } catch (_) {} }
-    else fs.writeFileSync(arquivo, conteudo, 'utf8');
-  }
-});
-
 priceHistory.resetForTests();
 
 // Primeira vez que o produto aparece: não há com o que comparar.
