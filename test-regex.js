@@ -52,7 +52,19 @@ const testMessages = [
     text: 'Monitor gamer em oferta\nPor: R$ 899,90\n🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100\nhttps://www.exemplo.com.br/monitor',
     expectedOriginal: null,
     expectedCurrent: 'R$ 899,90',
-    expectedCouponLine: '🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100',
+    // A decoração da origem sai: a fila já prefixa 🎟️ e aplica negrito.
+    expectedCouponLine: 'Cupom de R$ 100 acima de R$ 1.000: MONITOR100',
+  },
+  {
+    // Formato real do grupo TECNOART: preço anterior riscado e preço atual na
+    // mesma linha que cita cupom. Antes, essa linha era descartada inteira e
+    // o preço riscado acabava anunciado como preço atual no grupo destino.
+    name: 'Preço riscado com cupom citado na linha do preço atual',
+    text: '*Processador AMD Ryzen 5 5500 AM4*\n\nDe: ~R$799,00~\n🔥Por: R$499,56 (COM CUPOM, NO PIX)\n\n🎟️ *RESGATE o Cupom*\nhttps://s.shopee.com.br/112WynCE2U',
+    expectedOriginal: 'R$799,00',
+    expectedCurrent: 'R$499,56',
+    expectedTitle: 'Processador AMD Ryzen 5 5500 AM4',
+    expectedCouponLine: 'RESGATE o Cupom',
   },
 ];
 
@@ -68,6 +80,9 @@ testMessages.forEach((test, idx) => {
   }
   if (Object.hasOwn(test, 'expectedCoupons')) {
     assert.deepEqual(info.coupons, test.expectedCoupons);
+  }
+  if (test.expectedTitle) {
+    assert.equal(info.title, test.expectedTitle);
   }
   if (test.expectedCouponLine) {
     assert.ok(info.couponLines.includes(test.expectedCouponLine));

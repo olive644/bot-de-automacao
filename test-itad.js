@@ -18,11 +18,24 @@ assert.equal(promo.title, 'Jogo de teste — Steam');
 assert.equal(promo.originalPrice, 'R$ 79,99');
 assert.equal(promo.currentPrice, 'R$ 19,99');
 assert.equal(promo.preferredShop, true);
+// Sem `type`: a API do ITAD responde 500 quando esse campo chega como lista.
+// A separação entre jogo, DLC e pacote é feita localmente em toPromo.
 assert.deepEqual(buildDealsFilter(), {
-  type: ['game'],
   cut: { min: 1, max: null },
   steamCount: { min: 100, max: null },
 });
+assert.equal(toPromo({
+  id: 'dlc',
+  title: 'Pacote de expansão',
+  type: 'dlc',
+  deal: {
+    shop: { id: 61, name: 'Steam' },
+    price: { amount: 10, currency: 'BRL' },
+    regular: { amount: 100, currency: 'BRL' },
+    cut: 90,
+    url: 'https://store.steampowered.com/app/321',
+  },
+}), null);
 assert.equal(toPromo({
   id: 'small-sale',
   title: 'Jogo conhecido com desconto menor',
