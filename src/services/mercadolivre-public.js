@@ -1,6 +1,15 @@
 // ============================================
 // Coletor público do Mercado Livre
-// Pesquisa itens com desconto real, sem OAuth.
+// Lê as Ofertas do Dia em mercadolivre.com.br/ofertas.
+// Sem OAuth, sem chave de API e sem navegador headless.
+//
+// Por que a busca por termo saiu daqui:
+//   - api.mercadolibre.com/sites/MLB/search responde 403 "forbidden" para
+//     chamadas anônimas desde que o Mercado Livre fechou o catálogo público;
+//   - lista.mercadolivre.com.br redireciona para /gz/account-verification,
+//     ou seja, pede login mesmo em navegador real com user-agent de Chrome.
+// A página de ofertas continua aberta e já traz o preço anterior de cada
+// item, que é exatamente o dado necessário para calcular o desconto.
 // ============================================
 
 const fs = require('fs');
@@ -9,20 +18,26 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { enqueue } = require('./queue');
 
-const SEARCH_URL = 'https://api.mercadolibre.com/sites/MLB/search';
-const TOKEN_URL = 'https://api.mercadolibre.com/oauth/token';
-const MANAGED_SEARCH_URL = 'https://api.parse.bot/scraper/5e07d074-2130-4ce4-9849-c6521eba3c6b/search_products';
+const OFFERS_URL = 'https://www.mercadolivre.com.br/ofertas';
+// A página embute o estado do React como `_n.ctx.r={...};_n.ctx.r.assets...`.
+const STATE_PREFIX = '_n.ctx.r=';
+const STATE_SUFFIX = '};_n.ctx.r';
 const SEEN_FILE = path.resolve(__dirname, '../../.mercadolivre_seen.json');
 const MAX_SEEN_ITEMS = 5000;
+const REQUEST_TIMEOUT_MS = 30000;
+// Sem um user-agent de navegador o Mercado Livre devolve página de bloqueio.
+const REQUEST_HEADERS = {
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+};
+// Valores aceitos em ML_PUBLIC_CATEGORIES para pedir o feed sem filtro.
+const ALL_CATEGORIES = new Set(['todas', 'geral', 'all']);
 
 let timer = null;
 let running = false;
 let seen = new Map();
-let nextSearchIndex = 0;
-let applicationToken = null;
-let applicationTokenExpiresAt = 0;
-let webBrowser = null;
-let webPage = null;
+let nextCategoryIndex = 0;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -36,6 +51,115 @@ function getDiscountPercent(originalPrice, currentPrice) {
     return 0;
   }
   return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+}
+
+/**
+ * Minúsculas, sem acento e sem pontuação, para comparar título de produto
+ * com palavra-chave sem depender de como cada um foi escrito.
+ */
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Sem palavras-chave configuradas, toda oferta da categoria é aceita.
+ * Com palavras-chave, basta uma delas casar — e para casar, todas as
+ * palavras dela precisam aparecer no título.
+ */
+function matchesKeywords(title, keywords) {
+  if (!Array.isArray(keywords) || keywords.length === 0) return true;
+
+  const words = normalizeText(title).split(' ').filter(Boolean);
+  const titleWords = new Set(words);
+  return keywords.some((keyword) => {
+    const keywordWords = normalizeText(keyword).split(' ').filter(Boolean);
+    if (keywordWords.length === 0) return false;
+    return keywordWords.every((word) => titleWords.has(word));
+  });
+}
+
+function buildOffersUrl(category, page = 1) {
+  const url = new URL(OFFERS_URL);
+  if (category && !ALL_CATEGORIES.has(String(category).toLowerCase())) {
+    url.searchParams.set('category', category);
+  }
+  if (page > 1) url.searchParams.set('page', String(page));
+  return url.toString();
+}
+
+/**
+ * Recorta o JSON de renderização embutido na página de ofertas.
+ * Devolve null quando o Mercado Livre muda o formato da página.
+ */
+function extractOffersState(html) {
+  const open = html.indexOf(STATE_PREFIX);
+  if (open === -1) return null;
+  const close = html.indexOf(STATE_SUFFIX, open);
+  if (close === -1) return null;
+  try {
+    return JSON.parse(html.slice(open + STATE_PREFIX.length, close + 1));
+  } catch (error) {
+    return null;
+  }
+}
+
+function findComponent(card, type) {
+  const components = [...(card.components || []), ...(card.widget_components || [])];
+  return components.find((component) => component && component.type === type) || null;
+}
+
+/**
+ * O preço anterior vem dentro de price_labels, marcado com `previous: true`.
+ * Item sem preço anterior é item sem desconto declarado.
+ */
+function readPreviousPrice(price) {
+  for (const label of price.price_labels || []) {
+    for (const value of label.values || []) {
+      if (value && value.type === 'price' && value.price && value.price.previous) {
+        return Number(value.price.value);
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Converte um card do feed no mesmo formato que a antiga API devolvia,
+ * para que toPromo continue servindo aos dois caminhos.
+ */
+function toOfferItem(entry) {
+  const card = (entry && entry.card) || {};
+  const metadata = card.metadata || {};
+  const title = findComponent(card, 'title')?.title?.text;
+  const price = findComponent(card, 'price')?.price;
+  if (!metadata.id || !metadata.url || !title || !price) return null;
+
+  // metadata.url vem sem protocolo e sem os parâmetros de rastreio.
+  const permalink = metadata.url.startsWith('http') ? metadata.url : `https://${metadata.url}`;
+  return {
+    id: metadata.id,
+    title,
+    permalink,
+    price: Number(price.current_price?.value),
+    original_price: readPreviousPrice(price),
+  };
+}
+
+/**
+ * Lê os itens da página de ofertas.
+ * Devolve null quando o bloco de dados não pôde ser lido — diferente de []
+ * que significa "página lida, nenhum item".
+ */
+function readOffers(html) {
+  const state = extractOffersState(html);
+  const items = state?.appProps?.pageProps?.data?.items;
+  if (!Array.isArray(items)) return null;
+  return items.map(toOfferItem).filter(Boolean);
 }
 
 function toPromo(item) {
@@ -56,7 +180,7 @@ function toPromo(item) {
     currentPrice: formatCurrency(currentPrice),
     media: null,
     rawText: `${item.title}\nDe: ${formatCurrency(originalPrice)}\nPor: ${formatCurrency(currentPrice)}\n${item.permalink}`,
-    sourceGroup: item.sourceGroup || 'Mercado Livre (catálogo público)',
+    sourceGroup: item.sourceGroup || 'Mercado Livre (ofertas do dia)',
     receivedAt: new Date().toISOString(),
     discountPercent,
   };
@@ -93,297 +217,80 @@ function selectEligiblePromos(items) {
     .sort((left, right) => right.discountPercent - left.discountPercent);
 }
 
-async function search(query) {
-  if (config.mercadoLivreParseApiKey) {
-    return searchManagedApi(query);
-  }
-
-  // O endpoint de catálogo do Mercado Livre está devolvendo 403 por política.
-  // Quando o fallback estiver ligado, usamos diretamente a página pública e
-  // não fazemos uma chamada que já sabemos que será recusada.
-  if (config.mercadoLivreWebFallbackEnabled) {
-    return searchWebPage(query);
-  }
-
-  const url = new URL(SEARCH_URL);
-  url.searchParams.set('q', query);
-  // A API não ordena por desconto. Avaliamos uma amostra maior para encontrar
-  // promoções com preço anterior, sem fazer uma chamada por produto.
-  url.searchParams.set('limit', '50');
-
-  let response = await requestSearch(url);
-  if ((response.status === 401 || response.status === 403) && config.mercadoLivreClientId && config.mercadoLivreClientSecret) {
-    logger.info('[Mercado Livre] Catálogo público bloqueado; tentando credencial da aplicação.');
-    try {
-      const token = await getApplicationToken();
-      response = await requestSearch(url, token);
-    } catch (authError) {
-      if (config.mercadoLivreWebFallbackEnabled) {
-        logger.warn('[Mercado Livre] Credencial da aplicação recusada; tentando página pública.');
-        return searchWebPage(query);
-      }
-      throw authError;
-    }
-  }
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    const detail = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
-    if ((response.status === 401 || response.status === 403) && config.mercadoLivreWebFallbackEnabled) {
-      logger.info(`[Mercado Livre] API indisponível; usando página pública para "${query}".`);
-      return searchWebPage(query);
-    }
-    const error = new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
-    if (response.status === 403 && /PA_UNAUTHORIZED_RESULT_FROM_POLICIES|blocked_by|forbidden/i.test(body)) {
-      error.code = 'ML_POLICY_UNAUTHORIZED';
-    }
-    throw error;
-  }
-
-  const payload = await response.json();
-  return Array.isArray(payload.results) ? payload.results : [];
-}
-
-function unwrapManagedPayload(payload) {
-  let value = payload;
-  for (let index = 0; index < 4; index += 1) {
-    if (typeof value === 'string') {
-      try {
-        value = JSON.parse(value);
-        continue;
-      } catch (_) {
-        return null;
-      }
-    }
-    if (value && typeof value === 'object' && value.data !== undefined) {
-      value = value.data;
-      continue;
-    }
-    break;
-  }
-  return value;
-}
-
-function canonicalizeMercadoLivreUrl(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    const host = url.hostname.toLowerCase();
-    if (host === 'click1.mercadolivre.com.br') return null;
-    if (!host.endsWith('mercadolivre.com.br')) return null;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch (_) {
-    return null;
-  }
-}
-
-function normalizeManagedResults(payload) {
-  const data = unwrapManagedPayload(payload);
-  const results = Array.isArray(data?.results) ? data.results : [];
-
-  return results.map((item, index) => {
-    const permalink = canonicalizeMercadoLivreUrl(item?.url);
-    const match = permalink?.match(/\b(MLB\d{5,})\b/i) || permalink?.match(/MLB-(\d{5,})/i);
-    const matchedId = match ? (match[1].toUpperCase().startsWith('MLB') ? match[1].toUpperCase() : `MLB${match[1]}`) : null;
-    return {
-      id: matchedId || `managed-${index}-${Buffer.from(permalink || '').toString('base64url').slice(0, 48)}`,
-      title: item?.title,
-      permalink,
-      price: Number(item?.price),
-      original_price: Number(item?.original_price),
-      sourceGroup: 'Mercado Livre (busca gerenciada)',
-    };
-  }).filter((item) => item.title && item.permalink && Number.isFinite(item.price));
-}
-
-async function searchManagedApi(query) {
-  const url = new URL(MANAGED_SEARCH_URL);
-  url.searchParams.set('query', query);
-  url.searchParams.set('site', 'MLB');
-  url.searchParams.set('limit', '50');
-
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      'X-API-Key': config.mercadoLivreParseApiKey,
-      'user-agent': 'Oli-Bot/1.0',
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const data = unwrapManagedPayload(payload);
-    throw new Error(data?.message || payload?.message || `API gerenciada respondeu ${response.status}`);
-  }
-
-  const results = normalizeManagedResults(payload);
-  if (results.length === 0) throw new Error('A API gerenciada não retornou produtos para esta busca.');
-  return results;
-}
-
-function buildWebSearchUrl(query) {
-  const slug = query.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-  return `https://lista.mercadolivre.com.br/${slug}`;
-}
-
-function findInstalledBrowser() {
-  const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    process.env.CHROME_PATH,
-  ];
-
-  if (process.platform === 'win32') {
-    const programFiles = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)']].filter(Boolean);
-    for (const base of programFiles) {
-      candidates.push(
-        path.join(base, 'Google/Chrome/Application/chrome.exe'),
-        path.join(base, 'Microsoft/Edge/Application/msedge.exe')
-      );
-    }
-    if (process.env.LOCALAPPDATA) {
-      candidates.push(
-        path.join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
-        path.join(process.env.LOCALAPPDATA, 'Microsoft/Edge/Application/msedge.exe')
-      );
-    }
-  } else if (process.platform === 'darwin') {
-    candidates.push(
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
-    );
-  } else {
-    candidates.push('/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge');
-  }
-
-  return candidates.filter(Boolean).find((candidate) => fs.existsSync(candidate)) || null;
-}
-
-async function getWebPage() {
-  if (webPage && !webPage.isClosed()) return webPage;
-  const puppeteer = require('puppeteer');
-  const launchOptions = {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  };
-  const executablePath = findInstalledBrowser();
-  if (executablePath) launchOptions.executablePath = executablePath;
-
-  try {
-    webBrowser = await puppeteer.launch(launchOptions);
-  } catch (error) {
-    if (/could not find chrome|browser was not found/i.test(error.message)) {
-      throw new Error('Chrome/Edge não encontrado. Execute `npm run install:browser` e reinicie o bot.');
-    }
-    throw error;
-  }
-  webPage = await webBrowser.newPage();
-  await webPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
-  await webPage.setViewport({ width: 1365, height: 900 });
-  return webPage;
-}
-
-async function searchWebPage(query) {
-  const page = await getWebPage();
-  await page.goto(buildWebSearchUrl(query), { waitUntil: 'domcontentloaded', timeout: 45000 });
-
-  const items = await page.evaluate(() => {
-    function amount(root) {
-      if (!root) return null;
-      const fraction = root.querySelector('.andes-money-amount__fraction')?.textContent || '';
-      const cents = root.querySelector('.andes-money-amount__cents')?.textContent || '00';
-      const integer = fraction.replace(/\D/g, '');
-      if (!integer) return null;
-      return Number(`${integer}.${cents.replace(/\D/g, '').padEnd(2, '0').slice(0, 2)}`);
-    }
-
-    const cards = [...document.querySelectorAll('li.ui-search-layout__item, .poly-card, .ui-search-result')];
-    return cards.slice(0, 50).map((card, index) => {
-      const link = card.querySelector('a.poly-component__title, a.ui-search-link, a[href*="mercadolivre.com.br/MLB-"]');
-      const title = link?.textContent?.trim() || card.querySelector('h2')?.textContent?.trim();
-      const currentRoot = card.querySelector('.poly-price__current .andes-money-amount, .ui-search-price__second-line .andes-money-amount, .andes-money-amount:not(.andes-money-amount--previous)');
-      const previousRoot = card.querySelector('.andes-money-amount--previous, .ui-search-price__original-value .andes-money-amount');
-      const permalink = link?.href || '';
-      const match = permalink.match(/MLB-?(\d+)/i);
-      return {
-        id: match ? `MLB${match[1]}` : `web-${index}-${permalink}`,
-        title,
-        permalink,
-        price: amount(currentRoot),
-        original_price: amount(previousRoot),
-      };
-    }).filter((item) => item.title && item.permalink && item.price);
+async function fetchOffersPage(category, page) {
+  const response = await fetch(buildOffersUrl(category, page), {
+    headers: REQUEST_HEADERS,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
-  if (items.length === 0) {
-    throw new Error('A página pública não retornou produtos; pode haver bloqueio ou CAPTCHA.');
+  if (!response.ok) {
+    throw new Error(`A página de ofertas respondeu ${response.status} ${response.statusText}.`);
+  }
+  if (response.url.includes('account-verification')) {
+    throw new Error('O Mercado Livre pediu login para abrir a página de ofertas.');
+  }
+
+  const offers = readOffers(await response.text());
+  if (offers === null) {
+    throw new Error('A página de ofertas mudou de formato e o bloco de produtos não foi encontrado.');
+  }
+  return offers;
+}
+
+async function fetchCategoryOffers(category) {
+  const items = [];
+  for (let page = 1; page <= config.mercadoLivrePages; page += 1) {
+    const pageItems = await fetchOffersPage(category, page);
+    items.push(...pageItems);
+    // Página vazia significa fim da lista; adiantar não traria nada novo.
+    if (pageItems.length === 0) break;
   }
   return items;
 }
 
-async function requestSearch(url, token = null) {
-  const headers = {
-    accept: 'application/json',
-    'user-agent': 'Oli-Bot/1.0',
-  };
-  if (token) headers.authorization = `Bearer ${token}`;
-  return fetch(url, { headers });
-}
-
-async function getApplicationToken() {
-  if (applicationToken && applicationTokenExpiresAt - Date.now() > 5 * 60 * 1000) {
-    return applicationToken;
-  }
-
-  const response = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: config.mercadoLivreClientId,
-      client_secret: config.mercadoLivreClientSecret,
-    }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload.access_token) {
-    throw new Error(`Não foi possível obter credencial da aplicação (${response.status}).`);
-  }
-
-  applicationToken = payload.access_token;
-  applicationTokenExpiresAt = Date.now() + (Number(payload.expires_in) || 6 * 60 * 60) * 1000;
-  return applicationToken;
-}
-
 async function poll() {
-  if (running || !config.mercadoLivrePublicEnabled || config.mercadoLivreSearches.length === 0) return;
+  if (running || !config.mercadoLivrePublicEnabled || config.mercadoLivreCategories.length === 0) return;
   running = true;
 
   try {
     let added = 0;
-    const searches = config.mercadoLivreSearches;
-    const orderedSearches = searches.slice(nextSearchIndex).concat(searches.slice(0, nextSearchIndex));
-    nextSearchIndex = (nextSearchIndex + 1) % searches.length;
-    // A API gerenciada cobra um crédito por busca. Fazemos somente uma por
-    // ciclo e alternamos os termos para caber no plano gratuito.
-    const searchesThisPoll = config.mercadoLivreParseApiKey ? orderedSearches.slice(0, 1) : orderedSearches;
+    let inspected = 0;
+    const categories = config.mercadoLivreCategories;
+    const ordered = categories.slice(nextCategoryIndex).concat(categories.slice(0, nextCategoryIndex));
+    nextCategoryIndex = (nextCategoryIndex + 1) % categories.length;
+    // O mesmo produto aparece em mais de uma categoria; evita repetir no ciclo.
+    const enqueuedIds = new Set();
 
-    for (const query of searchesThisPoll) {
-      const items = await search(query);
-      const candidates = selectEligiblePromos(items).slice(0, config.mercadoLivreMaxPerSearch);
+    for (const category of ordered) {
+      let items;
+      try {
+        items = await fetchCategoryOffers(category);
+      } catch (error) {
+        // Uma categoria com problema não deve derrubar o ciclo inteiro.
+        logger.warn(`[Mercado Livre] Falha ao ler a categoria ${category}:`, error.message);
+        continue;
+      }
+
+      inspected += items.length;
+      const candidates = selectEligiblePromos(items)
+        .filter((promo) => !enqueuedIds.has(promo.id))
+        .filter((promo) => matchesKeywords(promo.title, config.mercadoLivreKeywords))
+        .slice(0, config.mercadoLivreMaxPerCategory);
+
       for (const promo of candidates) {
         if (added >= config.mercadoLivreMaxResults) break;
 
         seen.set(seenKey(promo), Date.now());
+        enqueuedIds.add(promo.id);
         enqueue(promo);
         added += 1;
         logger.info(`[Mercado Livre] Oferta adicionada (${promo.discountPercent}% OFF): ${promo.title}`);
       }
       if (added >= config.mercadoLivreMaxResults) break;
     }
+
     if (added > 0) saveSeen();
-    logger.info(`[Mercado Livre] Consulta concluída: ${added} nova(s) oferta(s) elegível(is).`);
+    logger.info(`[Mercado Livre] Consulta concluída: ${inspected} oferta(s) lida(s), ${added} nova(s) elegível(is).`);
   } catch (error) {
     logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);
   } finally {
@@ -396,14 +303,14 @@ function startMercadoLivrePublicSource() {
     logger.info('[Mercado Livre] Coletor público desativado (ML_PUBLIC_ENABLED=false).');
     return;
   }
-  if (config.mercadoLivreSearches.length === 0) return;
+  if (config.mercadoLivreCategories.length === 0) return;
   if (timer) return;
 
   loadSeen();
-  const mode = config.mercadoLivreParseApiKey
-    ? 'busca gerenciada'
-    : config.mercadoLivreWebFallbackEnabled ? 'página pública' : 'API oficial';
-  logger.info(`[Mercado Livre] Coletor ativo via ${mode}: ${config.mercadoLivreSearches.length} busca(s), a cada ${config.mercadoLivrePollMinutes} min.`);
+  const filtro = config.mercadoLivreKeywords.length > 0
+    ? `${config.mercadoLivreKeywords.length} palavra(s)-chave`
+    : 'sem filtro de palavra-chave';
+  logger.info(`[Mercado Livre] Ofertas do dia: ${config.mercadoLivreCategories.length} categoria(s), ${config.mercadoLivrePages} página(s) cada, ${filtro}, a cada ${config.mercadoLivrePollMinutes} min.`);
   poll();
   timer = setInterval(poll, config.mercadoLivrePollMinutes * 60 * 1000);
 }
@@ -412,22 +319,18 @@ function stopMercadoLivrePublicSource() {
   if (timer) clearInterval(timer);
   timer = null;
   saveSeen();
-  if (webBrowser) webBrowser.close().catch(() => {});
-  webBrowser = null;
-  webPage = null;
 }
 
 module.exports = {
   formatCurrency,
   getDiscountPercent,
+  normalizeText,
+  matchesKeywords,
+  buildOffersUrl,
+  extractOffersState,
+  readOffers,
   toPromo,
   selectEligiblePromos,
-  getApplicationToken,
-  buildWebSearchUrl,
-  findInstalledBrowser,
-  unwrapManagedPayload,
-  canonicalizeMercadoLivreUrl,
-  normalizeManagedResults,
   startMercadoLivrePublicSource,
   stopMercadoLivrePublicSource,
 };

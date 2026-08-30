@@ -29,8 +29,12 @@ function validateConfig() {
   if (config.destGroup && config.sourceGroups.includes(config.destGroup)) {
     logger.warn('DEST_GROUP também está em SOURCE_GROUPS. Remova-o das fontes para evitar reenvios em loop.');
   }
-  if (config.mercadoLivrePublicEnabled && config.mercadoLivreSearches.length === 0) {
-    logger.warn('ML_PUBLIC_ENABLED está ativo, mas ML_PUBLIC_SEARCHES não possui termos para pesquisar.');
+  if (config.mercadoLivrePublicEnabled && config.mercadoLivreCategories.length === 0) {
+    logger.warn('ML_PUBLIC_ENABLED está ativo, mas ML_PUBLIC_CATEGORIES não possui categorias para consultar.');
+  }
+  if (config.mercadoLivreLegacySearches.length > 0) {
+    logger.warn('ML_PUBLIC_SEARCHES não é mais usado: a busca por termo passou a exigir login no Mercado Livre.');
+    logger.warn('Troque por ML_PUBLIC_CATEGORIES (categorias das ofertas do dia) e, se quiser filtrar, ML_PUBLIC_KEYWORDS.');
   }
   if (config.itadEnabled && !config.itadApiKey) {
     logger.warn('ITAD_ENABLED está ativo, mas ITAD_API_KEY não foi configurada no .env.');
