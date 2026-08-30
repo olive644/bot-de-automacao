@@ -19,7 +19,8 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Foto do produto** — coletores enviam imagem junto com a oferta
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
-✅ **Telegram como fonte (opcional)** — grupos e canais via bot do @BotFather
+✅ **Telegram como fonte (opcional)** — grupos via bot do @BotFather
+✅ **Canais públicos do Telegram** — lidos pela prévia web, sem ser admin
 ✅ **AliExpress (opcional)** — busca por palavra, sem chave e sem navegador
 ✅ **Cupom em destaque** — o código sai sozinho, pronto para copiar
 ✅ **Mercado Livre (opcional)** — Ofertas do Dia sem token, chave, OAuth ou navegador
@@ -252,7 +253,58 @@ Para descobrir o id numérico de um grupo privado, adicione o bot ao grupo, mand
 
 ### Limite que vale conhecer
 
-Um bot do Telegram só lê o que ele mesmo participa. Canal público que você apenas acompanha, sem poder adicionar o bot como administrador, fica fora do alcance — não é configuração, é regra da plataforma.
+Um bot do Telegram só lê o que ele mesmo participa. Canal público que você apenas acompanha, sem poder adicionar o bot, fica fora do alcance — não é configuração, é regra da plataforma.
+
+Além disso, desligar o modo privacidade **não vale para grupos onde o bot já estava**: a própria documentação do Telegram diz que ele precisa ser removido e adicionado de novo para a mudança valer.
+
+**Para esses casos existe o caminho de baixo**, que não precisa do bot em lugar nenhum.
+
+---
+
+## 📡 Canais públicos do Telegram, sem ser admin
+
+Canal público tem uma prévia web em `t.me/s/<canal>` que o próprio Telegram serve já renderizada, com as mensagens recentes. Ler dali dispensa três coisas de uma vez: bot dentro do canal, permissão de administrador e login.
+
+É o caminho para quem **só acompanha** canais de promoção sem ser dono deles.
+
+```env
+TELEGRAM_WEB_ENABLED=true
+TELEGRAM_WEB_CHANNELS=https://t.me/LopesPromo,https://t.me/GamePlaysCassi
+TELEGRAM_WEB_POLL_MINUTES=30
+TELEGRAM_WEB_MAX_PER_CHANNEL=1
+```
+
+`TELEGRAM_WEB_CHANNELS` aceita `t.me/canal`, `@canal` e `canal`.
+
+**Só funciona com canal público.** Grupo privado, com link de convite (`t.me/+AbCdEf`), não tem prévia web e continua fora do alcance.
+
+### Dois detalhes que o formato impõe
+
+**As entidades HTML precisam ser desfeitas.** O Telegram escreve o cifrão como `&#036;` na prévia. Sem decodificar, `R$ 30` nunca casa com o padrão de preço e a promoção sairia sem valor nenhum — uma falha silenciosa, porque o texto continua legível para quem lê.
+
+**A primeira execução não despeja o histórico.** A página traz as 20 mensagens mais recentes de cada canal. Tudo que é lido vira "visto", mesmo o que não é publicado, então o primeiro ciclo manda no máximo `TELEGRAM_WEB_MAX_PER_CHANNEL` por canal em vez de 20.
+
+### Volume: uma conta que vale fazer
+
+A fila envia uma promoção a cada 2 a 5 minutos, ou seja, escoa perto de **17 por hora**. Se as fontes produzirem mais que isso, a fila cresce sem parar e as ofertas chegam velhas.
+
+| Configuração do Telegram | Produção | Total com ML + ITAD + AliExpress |
+| --- | --- | --- |
+| 3 canais, 15 min, 2 por canal | 24/h | 33/h — **acima do que escoa** |
+| 3 canais, 30 min, 2 por canal | 12/h | 21/h — acima do que escoa |
+| 3 canais, 30 min, 1 por canal | 6/h | 15/h — cabe |
+
+Os padrões do `.env.example` são a terceira linha, de propósito.
+
+### Links de divulgação
+
+Canal de promoção assina quase todo post com o link dos próprios grupos. Esse link não é a oferta, e repassá-lo em toda mensagem polui o grupo de destino e manda gente para fora dele:
+
+```env
+PROMO_LINK_BLOCKLIST=beacons.ai,linktr.ee,linktree.com,chat.whatsapp.com,t.me/joinchat
+```
+
+O link do produto é sempre preservado. Post que **só** tem link de divulgação não vira promoção nenhuma.
 
 O bot usa long polling, então não precisa de porta aberta nem de URL pública. Se o mesmo token estiver sendo lido por outro processo ou tiver um webhook ativo, o Telegram responde `409` e o log explica o que fazer.
 

@@ -17,6 +17,7 @@ const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require(
 const { startItadSource, stopItadSource } = require('./src/services/itad');
 const { startAliexpressSource, stopAliexpressSource } = require('./src/services/aliexpress');
 const { startTelegramSource, stopTelegramSource } = require('./src/services/telegram');
+const { startTelegramWebSource, stopTelegramWebSource } = require('./src/services/telegram-web');
 const { startHealthReport, stopHealthReport } = require('./src/services/health');
 const logger = require('./src/utils/logger');
 
@@ -48,6 +49,9 @@ function validateConfig() {
   if (config.telegramEnabled && config.telegramSourceChats.length === 0) {
     logger.warn('TELEGRAM_ENABLED está ativo, mas TELEGRAM_SOURCE_CHATS não possui grupos ou canais.');
   }
+  if (config.telegramWebEnabled && config.telegramWebChannels.length === 0) {
+    logger.warn('TELEGRAM_WEB_ENABLED está ativo, mas TELEGRAM_WEB_CHANNELS não possui canais.');
+  }
   if (config.itadEnabled && !config.itadApiKey) {
     logger.warn('ITAD_ENABLED está ativo, mas ITAD_API_KEY não foi configurada no .env.');
   }
@@ -76,6 +80,7 @@ client.once('ready', async () => {
 
   // O Telegram não depende do WhatsApp Web: basta a fila estar rodando.
   startTelegramSource();
+  startTelegramWebSource();
   
   // Vigia as fontes que consultam sozinhas e avisa quando alguma para.
   startHealthReport();
@@ -89,6 +94,7 @@ process.on('SIGINT', async () => {
   stopItadSource();
   stopAliexpressSource();
   stopTelegramSource();
+  stopTelegramWebSource();
   stopHealthReport();
   saveBeforeExit();
 
