@@ -18,10 +18,11 @@
     "test:mercadolivre": "node test-mercadolivre-public.js",
     "test:itad": "node test-itad.js",
     "test:listener": "node test-listener.js",
-    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad && npm run test:listener",
+    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad && npm run test:listener && npm run test:telegram",
     "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
     "install:browser": "puppeteer browsers install chrome",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "test:telegram": "node test-telegram.js"
   },
   "keywords": [],
   "license": "ISC",

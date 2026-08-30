@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.wwebjs_auth
+.wwebjs_cache
+.queue_backup.json
+.mercadolivre_seen.json
+.itad_seen.json
+.telegram_offset.json
+*.log
+qr-code.png
+qrcode.png

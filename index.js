@@ -15,6 +15,7 @@ const { registerListener } = require('./src/services/listener');
 const { startProcessing, stopProcessing, saveBeforeExit } = require('./src/services/queue');
 const { startMercadoLivrePublicSource, stopMercadoLivrePublicSource } = require('./src/services/mercadolivre-public');
 const { startItadSource, stopItadSource } = require('./src/services/itad');
+const { startTelegramSource, stopTelegramSource } = require('./src/services/telegram');
 const logger = require('./src/utils/logger');
 
 // --- Validação mínima de configuração ---
@@ -35,6 +36,12 @@ function validateConfig() {
   if (config.mercadoLivreLegacySearches.length > 0) {
     logger.warn('ML_PUBLIC_SEARCHES não é mais usado: a busca por termo passou a exigir login no Mercado Livre.');
     logger.warn('Troque por ML_PUBLIC_CATEGORIES (categorias das ofertas do dia) e, se quiser filtrar, ML_PUBLIC_KEYWORDS.');
+  }
+  if (config.telegramEnabled && !config.telegramBotToken) {
+    logger.warn('TELEGRAM_ENABLED está ativo, mas TELEGRAM_BOT_TOKEN não foi configurado no .env.');
+  }
+  if (config.telegramEnabled && config.telegramSourceChats.length === 0) {
+    logger.warn('TELEGRAM_ENABLED está ativo, mas TELEGRAM_SOURCE_CHATS não possui grupos ou canais.');
   }
   if (config.itadEnabled && !config.itadApiKey) {
     logger.warn('ITAD_ENABLED está ativo, mas ITAD_API_KEY não foi configurada no .env.');
@@ -60,6 +67,9 @@ client.once('ready', async () => {
   // Consulta o catálogo público; não depende de token, OAuth ou conta vendedora.
   startMercadoLivrePublicSource();
   startItadSource();
+
+  // O Telegram não depende do WhatsApp Web: basta a fila estar rodando.
+  startTelegramSource();
 });
 
 // --- Graceful shutdown (Ctrl+C) ---
@@ -68,6 +78,7 @@ process.on('SIGINT', async () => {
   stopProcessing();
   stopMercadoLivrePublicSource();
   stopItadSource();
+  stopTelegramSource();
   saveBeforeExit();
 
   try {

@@ -36,6 +36,13 @@ const config = {
   // ID do grupo destino (para onde enviamos as promoções convertidas)
   destGroup: normalizeChatId(process.env.DEST_GROUP),
 
+  // Telegram como fonte adicional, via bot criado no @BotFather.
+  telegramEnabled: process.env.TELEGRAM_ENABLED === 'true',
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  // Aceita id numérico (-1001234567890) e @usuario de canal/grupo público.
+  telegramSourceChats: parseTextList(process.env.TELEGRAM_SOURCE_CHATS),
+  telegramSendImages: process.env.TELEGRAM_SEND_IMAGES !== 'false',
+
   // Ofertas do Dia do Mercado Livre — não requer OAuth, token ou navegador.
   mercadoLivrePublicEnabled: process.env.ML_PUBLIC_ENABLED === 'true',
   // IDs de categoria do feed de ofertas. Games e Informática por padrão.

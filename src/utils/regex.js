@@ -36,26 +36,61 @@ function extractPrices(text) {
   return matches || [];
 }
 
+const COUPON_PATTERN = /\b(?:cupom|c[oó]digo\s+promocional)\b/i;
+
+// Palavras que aparecem coladas em "cupom" mas não são código nenhum.
+// Sem esta lista, "Cupom de R$ 30" devolvia "de" como se fosse cupom.
+const NOT_A_COUPON = new Set([
+  'de', 'do', 'da', 'no', 'na', 'em', 'com', 'sem', 'para', 'por', 'ate',
+  'ou', 'os', 'as', 'um', 'uma', 'the', 'use', 'usar', 'aplique', 'valido',
+  'exclusivo', 'primeira', 'compra', 'desconto', 'descontos', 'promocional',
+  'cupom', 'cupons', 'codigo', 'off', 'pix', 'frete', 'gratis', 'resgate',
+  'resgatar', 'clique', 'link', 'loja', 'app', 'site', 'acima', 'abaixo',
+]);
+
+/**
+ * Código de cupom é quase sempre alfanumérico e escrito em caixa alta.
+ * Exigir esse formato é o que separa "OLI10" de "de" ou "acima".
+ */
+function looksLikeCouponCode(value) {
+  const code = String(value || '').trim();
+  if (code.length < 3 || code.length > 30) return false;
+  if (NOT_A_COUPON.has(code.toLowerCase())) return false;
+  return /^[A-Z0-9][A-Z0-9_-]*$/.test(code);
+}
+
 /**
  * Extrai códigos de cupom explicitamente identificados na mensagem.
- * Exemplos: "Cupom: OLI10", "Use o código GAME20".
+ * Exemplos: "Cupom: OLI10", "Use o código GAME20",
+ * "🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100".
  */
 function extractCoupons(text) {
   if (!text) return [];
 
-  const couponRegex = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-z0-9][a-z0-9_-]{2,30})\b/gi;
   const coupons = [];
-  let match;
-  while ((match = couponRegex.exec(text)) !== null) {
-    const coupon = match[1];
-    if (!coupons.some((value) => value.toLowerCase() === coupon.toLowerCase())) {
-      coupons.push(coupon);
+  const adicionar = (valor) => {
+    if (!looksLikeCouponCode(valor)) return;
+    if (!coupons.some((existente) => existente.toLowerCase() === String(valor).toLowerCase())) {
+      coupons.push(String(valor).trim());
     }
+  };
+
+  // 1) Código logo depois do rótulo: "Cupom: OLI10", "código GAME20".
+  const aposRotulo = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-zA-Z0-9][a-zA-Z0-9_-]{2,30})\b/g;
+  let match;
+  while ((match = aposRotulo.exec(text)) !== null) adicionar(match[1]);
+
+  // 2) Código no fim de uma linha de cupom, depois de dois pontos. Cobre
+  //    "Cupom de R$ 100 acima de R$ 1.000: MONITOR100", em que o rótulo está
+  //    longe do código e a regra 1 pararia na primeira palavra.
+  for (const line of text.split(/\r?\n/)) {
+    if (!COUPON_PATTERN.test(line)) continue;
+    const noFim = line.match(/:\s*[`*_]*([a-zA-Z0-9][a-zA-Z0-9_-]{2,30})[`*_]*\s*$/);
+    if (noFim) adicionar(noFim[1]);
   }
+
   return coupons;
 }
-
-const COUPON_PATTERN = /\b(?:cupom|c[oó]digo\s+promocional)\b/i;
 
 // Uma linha de preço começa com o rótulo, tolerando emoji e marcação do
 // WhatsApp antes dele: "🔥Por: R$499,56", "*De:* ~R$799,00~".

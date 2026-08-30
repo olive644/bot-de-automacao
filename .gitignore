@@ -6,3 +6,5 @@ node_modules/
 qrcode.png
 .mercadolivre_seen.json
 .itad_seen.json
+.telegram_offset.json
+.queue_backup.json
