@@ -20,6 +20,7 @@ let seen = new Map();
 let nextSearchIndex = 0;
 let applicationToken = null;
 let applicationTokenExpiresAt = 0;
+let policyBlocked = false;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -106,7 +107,11 @@ async function search(query) {
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     const detail = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
-    throw new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
+    const error = new Error(`API respondeu ${response.status} ${response.statusText}${detail ? `: ${detail}` : ''}`);
+    if (response.status === 403 && /PA_UNAUTHORIZED_RESULT_FROM_POLICIES|blocked_by/i.test(body)) {
+      error.code = 'ML_POLICY_UNAUTHORIZED';
+    }
+    throw error;
   }
 
   const payload = await response.json();
@@ -147,7 +152,7 @@ async function getApplicationToken() {
 }
 
 async function poll() {
-  if (running || !config.mercadoLivrePublicEnabled || config.mercadoLivreSearches.length === 0) return;
+  if (running || policyBlocked || !config.mercadoLivrePublicEnabled || config.mercadoLivreSearches.length === 0) return;
   running = true;
 
   try {
@@ -172,7 +177,14 @@ async function poll() {
     if (added > 0) saveSeen();
     logger.info(`[Mercado Livre] Consulta concluída: ${added} nova(s) oferta(s) elegível(is).`);
   } catch (error) {
-    logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);
+    if (error.code === 'ML_POLICY_UNAUTHORIZED') {
+      policyBlocked = true;
+      if (timer) clearInterval(timer);
+      timer = null;
+      logger.warn('[Mercado Livre] Aplicação sem política para pesquisar produtos. Coletor desativado nesta execução; grupos-fonte e ITAD continuam ativos.');
+    } else {
+      logger.warn('[Mercado Livre] Falha na consulta pública:', error.message);
+    }
   } finally {
     running = false;
   }

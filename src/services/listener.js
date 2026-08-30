@@ -91,6 +91,7 @@ async function processMessage(message, sourceName) {
     urls: promoInfo.urls,
     prices: promoInfo.prices,
     coupons: promoInfo.coupons,
+    couponLines: promoInfo.couponLines,
     originalPrice: promoInfo.originalPrice,
     currentPrice: promoInfo.currentPrice,
     media,

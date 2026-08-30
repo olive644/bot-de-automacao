@@ -45,6 +45,14 @@ const testMessages = [
     expectedOriginal: 'R$ 199,90',
     expectedCurrent: 'R$ 89,90',
     expectedCoupons: ['JOGA20'],
+    expectedCouponLine: 'Use o cupom: JOGA20',
+  },
+  {
+    name: 'Linha complexa de cupom preservada',
+    text: 'Monitor gamer em oferta\nPor: R$ 899,90\n🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100\nhttps://www.exemplo.com.br/monitor',
+    expectedOriginal: null,
+    expectedCurrent: 'R$ 899,90',
+    expectedCouponLine: '🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100',
   },
 ];
 
@@ -60,6 +68,9 @@ testMessages.forEach((test, idx) => {
   }
   if (Object.hasOwn(test, 'expectedCoupons')) {
     assert.deepEqual(info.coupons, test.expectedCoupons);
+  }
+  if (test.expectedCouponLine) {
+    assert.ok(info.couponLines.includes(test.expectedCouponLine));
   }
   console.log('📝 Mensagem:');
   console.log('   ' + test.text.replace(/\n/g, '\n   '));
@@ -88,10 +99,13 @@ testMessages.forEach((test, idx) => {
     } else if (test.expectedCurrent) {
       assert.ok(formatted.includes(`*Preço: ${test.expectedCurrent}*`));
     }
-    if (test.expectedCoupons) {
+    if (test.expectedCoupons && !test.expectedCouponLine) {
       test.expectedCoupons.forEach((coupon) => {
         assert.ok(formatted.includes(`\`${coupon}\``), `Cupom ausente da mensagem: ${coupon}`);
       });
+    }
+    if (test.expectedCouponLine) {
+      assert.ok(formatted.includes(test.expectedCouponLine), `Linha de cupom ausente: ${test.expectedCouponLine}`);
     }
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');

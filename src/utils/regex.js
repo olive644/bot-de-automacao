@@ -55,6 +55,21 @@ function extractCoupons(text) {
   return coupons;
 }
 
+/**
+ * Preserva a linha completa do cupom para formatos que não possuem apenas um
+ * código simples, como "Cupom de R$ 30 acima de R$ 200".
+ */
+function extractCouponLines(text) {
+  if (!text) return [];
+  const lines = text.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^https?:\/\//i.test(line))
+    .filter((line) => /\b(?:cupom|c[oó]digo\s+promocional)\b/i.test(line))
+    .map((line) => line.slice(0, 240));
+
+  return [...new Set(lines)];
+}
+
 function extractPriceDetails(text, prices = extractPrices(text)) {
   if (!text || prices.length === 0) {
     return { originalPrice: null, currentPrice: null };
@@ -85,6 +100,7 @@ function extractPromoInfo(text) {
       urls: [],
       prices: [],
       coupons: [],
+      couponLines: [],
       originalPrice: null,
       currentPrice: null,
       title: '',
@@ -93,9 +109,13 @@ function extractPromoInfo(text) {
   }
 
   const urls = extractUrls(text);
-  const prices = extractPrices(text);
   const coupons = extractCoupons(text);
-  const { originalPrice, currentPrice } = extractPriceDetails(text, prices);
+  const couponLines = extractCouponLines(text);
+  const textWithoutCouponLines = text.split(/\r?\n/)
+    .filter((line) => !/\b(?:cupom|c[oó]digo\s+promocional)\b/i.test(line))
+    .join('\n');
+  const prices = extractPrices(textWithoutCouponLines);
+  const { originalPrice, currentPrice } = extractPriceDetails(textWithoutCouponLines, prices);
 
   // Tenta extrair o título: primeira linha que não seja só URL ou espaço
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -115,6 +135,7 @@ function extractPromoInfo(text) {
     urls,
     prices,
     coupons,
+    couponLines,
     originalPrice,
     currentPrice,
     title,
@@ -122,4 +143,11 @@ function extractPromoInfo(text) {
   };
 }
 
-module.exports = { extractUrls, extractPrices, extractCoupons, extractPriceDetails, extractPromoInfo };
+module.exports = {
+  extractUrls,
+  extractPrices,
+  extractCoupons,
+  extractCouponLines,
+  extractPriceDetails,
+  extractPromoInfo,
+};
