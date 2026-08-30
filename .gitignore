@@ -13,3 +13,5 @@ logs/
 .price_history.json
 .health.json
 .telegram_web_seen.json
+.dedupe.json
+.aviso_noturno.json

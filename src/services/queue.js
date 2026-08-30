@@ -12,6 +12,8 @@ const { randomDelay, formatMs } = require('../utils/delay');
 const { downloadImage } = require('../utils/media');
 const { applyWatermark } = require('../utils/watermark');
 const { lojaDaPromocao } = require('../utils/plataforma');
+const { isQuietHour } = require('../utils/horario');
+const { isDuplicate } = require('./dedupe');
 
 // Fila FIFO interna — armazena as promoções pendentes
 const queue = [];
@@ -102,7 +104,23 @@ function enqueue(promo) {
     logger.info(`[Fila] Oferta bloqueada ignorada: ${promo?.title || 'sem título'}`);
     return false;
   }
+  // Cada fonte já evita repetir a si mesma, mas nenhuma sabe da outra: o
+  // mesmo cupom da Amazon chegava por dois canais do Telegram.
+  if (isDuplicate(promo)) {
+    logger.info(`[Fila] Oferta repetida de outra fonte ignorada: ${promo?.title || 'sem título'}`);
+    return false;
+  }
+
   queue.push(promo);
+
+  // Teto da fila: promoção velha não interessa a ninguém. Ao estourar,
+  // descarta as de menor desconto, que são as que menos fazem falta.
+  if (queue.length > config.queueMaxSize) {
+    queue.sort((a, b) => (Number(b.discountPercent) || 0) - (Number(a.discountPercent) || 0));
+    const descartadas = queue.splice(config.queueMaxSize);
+    logger.warn(`[Fila] Teto de ${config.queueMaxSize} atingido; ${descartadas.length} oferta(s) de menor desconto descartada(s).`);
+  }
+
   saveQueueToDisk();
   logger.info(`[Fila] Promoção adicionada. Tamanho da fila: ${queue.length}`);
   logger.debug(`[Fila] Detalhes:`, {
@@ -298,6 +316,55 @@ async function sendPromo(client, promo, attempt = 1) {
   }
 }
 
+// Guarda o dia em que o aviso de boa noite já saiu, para não repetir a cada
+// verificação nem depois de um restart no meio da madrugada.
+const AVISO_FILE = path.join(__dirname, '../../.aviso_noturno.json');
+
+function avisoJaEnviadoHoje() {
+  try {
+    if (!fs.existsSync(AVISO_FILE)) return false;
+    const dados = JSON.parse(fs.readFileSync(AVISO_FILE, 'utf8'));
+    return dados?.dia === new Date().toDateString();
+  } catch (_) {
+    return false;
+  }
+}
+
+function marcarAvisoEnviado() {
+  try {
+    fs.writeFileSync(AVISO_FILE, JSON.stringify({ dia: new Date().toDateString() }), 'utf8');
+  } catch (error) {
+    logger.warn('[Fila] Não foi possível registrar o aviso noturno:', error.message);
+  }
+}
+
+/**
+ * Avisa o grupo, uma vez por noite, que os envios pararam por hoje.
+ */
+async function announceQuietHours(client) {
+  if (!config.quietHoursNotice || avisoJaEnviadoHoje()) return;
+
+  const fim = `${String(config.quietHoursEnd).padStart(2, '0')}h`;
+  // Um "\n" vindo do .env chega como dois caracteres, não como quebra.
+  const texto = config.quietHoursNotice
+    .split('\\n').join('\n')
+    .split('{fim}').join(fim);
+
+  try {
+    await client.sendMessage(config.destGroup, texto);
+    marcarAvisoEnviado();
+    logger.info(`[Fila] Aviso de encerramento enviado. Silêncio até as ${fim}.`);
+    if (queue.length > 0) {
+      logger.info(`[Fila] ${queue.length} promoção(ões) ficam guardadas para amanhã.`);
+    }
+  } catch (error) {
+    logger.warn('[Fila] Não foi possível enviar o aviso de encerramento:', error.message);
+    // Marca mesmo assim: insistir a cada cinco minutos a noite toda seria
+    // pior do que o grupo ficar sem o aviso de hoje.
+    marcarAvisoEnviado();
+  }
+}
+
 /**
  * Loop principal de processamento da fila.
  * Roda indefinidamente enquanto o bot estiver ativo.
@@ -318,6 +385,14 @@ async function startProcessing(client) {
   logger.info('[Fila] Processador de fila iniciado.');
 
   while (isProcessing) {
+    if (isQuietHour()) {
+      await announceQuietHours(client);
+      // Checa de novo em alguns minutos; não faz sentido acordar a cada 30s
+      // durante horas de silêncio.
+      await randomDelay(5 * 60000, 6 * 60000);
+      continue;
+    }
+
     if (queue.length > 0) {
       // Remove o primeiro item (FIFO)
       const promo = queue.shift();

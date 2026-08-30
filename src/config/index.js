@@ -44,6 +44,26 @@ const config = {
   // texto livre; os coletores ja vem de feed de ofertas.
   onlyRealOffers: process.env.ONLY_REAL_OFFERS !== 'false',
 
+  // Horário de silêncio: o bot não envia nem coleta nessa janela.
+  // Não coletar é de propósito — ver src/utils/horario.js.
+  quietHoursEnabled: process.env.QUIET_HOURS_ENABLED !== 'false',
+  quietHoursStart: Math.min(23, Math.max(0, parseInt(process.env.QUIET_HOURS_START, 10) || 21)),
+  quietHoursEnd: Math.min(23, Math.max(0, parseNonNegativeInteger(process.env.QUIET_HOURS_END, 6))),
+  // Aviso enviado ao grupo quando o silêncio começa. Vazio não avisa.
+  // O \n no .env chega como texto; a troca por quebra real é feita na fila.
+  quietHoursNotice: process.env.QUIET_HOURS_NOTICE === ''
+    ? ''
+    : (process.env.QUIET_HOURS_NOTICE
+      || '🌙 *Cheguei no horário de silêncio.*\n\nZero notificações até as {fim}. Boa noite!'),
+
+  // Não repetir a mesma oferta vinda de fontes diferentes.
+  dedupeEnabled: process.env.DEDUPE_ENABLED !== 'false',
+  dedupeWindowHours: Math.min(720, Math.max(1, parseInt(process.env.DEDUPE_WINDOW_HOURS, 10) || 72)),
+
+  // Teto da fila. Promoção velha não interessa a ninguém, e sem teto uma
+  // pausa longa deixaria o grupo recebendo oferta de ontem.
+  queueMaxSize: Math.min(200, Math.max(5, parseInt(process.env.QUEUE_MAX_SIZE, 10) || 30)),
+
   // Marca d'água aplicada em toda imagem que vai para o grupo de destino,
   // venha ela dos coletores ou dos grupos de origem.
   watermarkEnabled: process.env.WATERMARK_ENABLED !== 'false',
@@ -122,6 +142,11 @@ const config = {
   // Evita que a lista seja dominada por jogos obscuros com descontos enormes.
   // Use 0 no .env para aceitar também jogos sem avaliações na Steam.
   itadMinSteamReviews: parseNonNegativeInteger(process.env.ITAD_MIN_STEAM_REVIEWS, 100),
+  // Piso de preço cheio, em reais. Medido: subir o mínimo de avaliações de
+  // 100 para 2000 continuava trazendo "Clock Simulator" e "RUSSIAPHOBIA".
+  // Quanto o jogo custa inteiro separa muito melhor do que quantas
+  // avaliações ele tem. Use 0 para aceitar qualquer preço.
+  itadMinRegularPrice: parseNonNegativeInteger(process.env.ITAD_MIN_REGULAR_PRICE, 40),
   itadMaxResults: Math.min(10, Math.max(1, parseInt(process.env.ITAD_MAX_RESULTS, 10) || 3)),
   // Steam=61, Epic=16, GOG=35, Nuuvem=50.
   itadShops: parseNumberList(process.env.ITAD_SHOPS, '61,16,35,50'),

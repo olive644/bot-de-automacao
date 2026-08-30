@@ -18,7 +18,7 @@
     "test:mercadolivre": "node test-mercadolivre-public.js",
     "test:itad": "node test-itad.js",
     "test:listener": "node test-listener.js",
-    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad && npm run test:listener && npm run test:telegram && npm run test:aliexpress && npm run test:qualidade && npm run test:telegram-web && npm run test:marca && npm run test:mensagem",
+    "test": "npm run test:regex && npm run test:auth && npm run test:mercadolivre && npm run test:itad && npm run test:listener && npm run test:telegram && npm run test:aliexpress && npm run test:qualidade && npm run test:telegram-web && npm run test:marca && npm run test:mensagem && npm run test:silencio",
     "auth:mercadolivre": "node src/scripts/auth-mercadolivre.js",
     "install:browser": "puppeteer browsers install chrome",
     "dev": "node --watch index.js",
@@ -27,7 +27,8 @@
     "test:qualidade": "node test-qualidade.js",
     "test:telegram-web": "node test-telegram-web.js",
     "test:marca": "node test-marca-dagua.js",
-    "test:mensagem": "node test-mensagem.js"
+    "test:mensagem": "node test-mensagem.js",
+    "test:silencio": "node test-silencio.js"
   },
   "keywords": [],
   "license": "ISC",
