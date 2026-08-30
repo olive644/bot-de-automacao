@@ -269,16 +269,20 @@ ITAD_ENABLED=true
 ITAD_API_KEY=sua_chave_aqui
 ITAD_COUNTRY=BR
 ITAD_POLL_MINUTES=60
-ITAD_MIN_DISCOUNT=50
+ITAD_MIN_DISCOUNT=1
+ITAD_MIN_STEAM_REVIEWS=100
 ITAD_MAX_RESULTS=3
 ITAD_SHOPS=61,16,35,50
 ITAD_PRIMARY_SHOPS=61,16
 ITAD_EXCLUDE_BUNDLES=true
+ITAD_EXCLUDE_ARABIC_TITLES=true
 ```
 
 A lista `ITAD_SHOPS` também é validada dentro do bot. Fanatical é bloqueada no coletor e novamente na fila, inclusive para remover ofertas antigas restauradas do backup.
 
-O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot prioriza Steam e Epic Games Store, aceita também GOG e Nuuvem e exclui bundles, cursos e masterclasses. Ele envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
+O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot prioriza Steam e Epic Games Store, aceita também GOG e Nuuvem e exclui bundles, cursos, masterclasses e títulos em árabe. A consulta usa a ordem de relevância do ITAD, aceita qualquer desconto real e exige por padrão 100 avaliações na Steam para evitar que a lista seja dominada por jogos obscuros com descontos de 95–99%. Para ampliar ou restringir o catálogo, altere `ITAD_MIN_STEAM_REVIEWS`.
+
+Ele envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
 
 ---
 

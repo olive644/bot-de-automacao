@@ -13,6 +13,7 @@ const DEALS_URL = 'https://api.isthereanydeal.com/deals/v2';
 const SEEN_FILE = path.resolve(__dirname, '../../.itad_seen.json');
 const MAX_SEEN_ITEMS = 5000;
 const BLOCKED_SHOP_PATTERN = /\bfanatical\b/i;
+const ARABIC_SCRIPT_PATTERN = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]/u;
 
 let timer = null;
 let running = false;
@@ -36,6 +37,10 @@ function toPromo(item) {
   const title = item?.title;
   const shopId = Number(deal.shop?.id);
   const shopName = deal.shop?.name || '';
+
+  if (config.itadExcludeArabicTitles && ARABIC_SCRIPT_PATTERN.test(title || '')) {
+    return null;
+  }
 
   // O parâmetro `shops` da API nem sempre foi suficiente para impedir lojas
   // indesejadas. A validação local torna a lista do .env obrigatória e também
@@ -79,6 +84,26 @@ function toPromo(item) {
   };
 }
 
+function buildDealsFilter() {
+  const filter = {
+    type: ['game'],
+    cut: { min: config.itadMinDiscount, max: null },
+  };
+
+  if (config.itadMinSteamReviews > 0) {
+    filter.steamCount = { min: config.itadMinSteamReviews, max: null };
+  }
+
+  return filter;
+}
+
+function prioritizeShops(promos) {
+  return [
+    ...promos.filter((promo) => promo.preferredShop),
+    ...promos.filter((promo) => !promo.preferredShop),
+  ];
+}
+
 function seenKey(promo) {
   return `${promo.id}:${promo.currentPrice}:${promo.urls[0]}`;
 }
@@ -105,8 +130,10 @@ async function fetchDeals() {
   const url = new URL(DEALS_URL);
   url.searchParams.set('key', config.itadApiKey);
   url.searchParams.set('country', config.itadCountry);
-  url.searchParams.set('sort', '-cut');
-  url.searchParams.set('limit', String(Math.min(50, config.itadMaxResults * 10)));
+  // Sem `sort=-cut`: a ordem padrão do ITAD é mais relevante e não traz
+  // somente jogos desconhecidos com 95–99% de desconto.
+  url.searchParams.set('filter', JSON.stringify(buildDealsFilter()));
+  url.searchParams.set('limit', String(Math.min(200, Math.max(50, config.itadMaxResults * 20))));
   if (config.itadShops.length > 0) url.searchParams.set('shops', config.itadShops.join(','));
 
   const response = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Oli-Bot/1.0' } });
@@ -121,10 +148,11 @@ async function poll() {
   if (running || !config.itadEnabled || !config.itadApiKey) return;
   running = true;
   try {
-    const promos = (await fetchDeals())
+    const eligiblePromos = (await fetchDeals())
       .map(toPromo)
-      .filter((promo) => promo && !seen.has(seenKey(promo)))
-      .sort((left, right) => Number(right.preferredShop) - Number(left.preferredShop) || right.discountPercent - left.discountPercent)
+      .filter((promo) => promo && !seen.has(seenKey(promo)));
+
+    const promos = prioritizeShops(eligiblePromos)
       .slice(0, config.itadMaxResults);
 
     for (const promo of promos) {
@@ -149,7 +177,7 @@ function startItadSource() {
   if (!config.itadApiKey || timer) return;
 
   loadSeen();
-  logger.info(`[ITAD] Coletor ativo para ${config.itadCountry}; lojas ${config.itadShops.join(',')}, prioridade ${config.itadPrimaryShops.join(',')}.`);
+  logger.info(`[ITAD] Coletor ativo para ${config.itadCountry}; desconto a partir de ${config.itadMinDiscount}%, mínimo de ${config.itadMinSteamReviews} avaliações, lojas ${config.itadShops.join(',')}.`);
   poll();
   timer = setInterval(poll, config.itadPollMinutes * 60 * 1000);
 }
@@ -160,4 +188,11 @@ function stopItadSource() {
   saveSeen();
 }
 
-module.exports = { formatCurrency, toPromo, startItadSource, stopItadSource };
+module.exports = {
+  formatCurrency,
+  toPromo,
+  buildDealsFilter,
+  prioritizeShops,
+  startItadSource,
+  stopItadSource,
+};

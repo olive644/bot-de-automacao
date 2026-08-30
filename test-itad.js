@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { formatCurrency, toPromo } = require('./src/services/itad');
+const { formatCurrency, toPromo, buildDealsFilter, prioritizeShops } = require('./src/services/itad');
 const { isBlockedPromotion } = require('./src/services/queue');
 
 assert.equal(formatCurrency(19.99, 'BRL'), 'R$ 19,99');
@@ -18,7 +18,36 @@ assert.equal(promo.title, 'Jogo de teste — Steam');
 assert.equal(promo.originalPrice, 'R$ 79,99');
 assert.equal(promo.currentPrice, 'R$ 19,99');
 assert.equal(promo.preferredShop, true);
+assert.deepEqual(buildDealsFilter(), {
+  type: ['game'],
+  cut: { min: 1, max: null },
+  steamCount: { min: 100, max: null },
+});
+assert.equal(toPromo({
+  id: 'small-sale',
+  title: 'Jogo conhecido com desconto menor',
+  type: 'game',
+  deal: {
+    shop: { id: 61, name: 'Steam' },
+    price: { amount: 90, currency: 'BRL' },
+    regular: { amount: 100, currency: 'BRL' },
+    cut: 10,
+    url: 'https://store.steampowered.com/app/456',
+  },
+})?.discountPercent, 10);
 assert.equal(toPromo({ id: 'no-sale', title: 'Sem desconto', deal: { price: { amount: 10 }, regular: { amount: 10 }, cut: 0, url: 'https://example.com' } }), null);
+assert.equal(toPromo({
+  id: 'arabic-title',
+  title: 'لعبة غير معروفة',
+  type: 'game',
+  deal: {
+    shop: { id: 61, name: 'Steam' },
+    price: { amount: 1, currency: 'BRL' },
+    regular: { amount: 100, currency: 'BRL' },
+    cut: 99,
+    url: 'https://store.steampowered.com/app/789',
+  },
+}), null);
 assert.equal(toPromo({ id: 'bundle', title: 'Linux eLearning Bundle', type: 'game', deal: { price: { amount: 1 }, regular: { amount: 100 }, cut: 99, url: 'https://example.com' } }), null);
 assert.equal(toPromo({
   id: 'fanatical',
@@ -38,6 +67,16 @@ assert.equal(isBlockedPromotion({
   urls: ['https://www.fanatical.com/game/teste'],
 }), true);
 assert.equal(isBlockedPromotion({ title: 'Jogo — Steam', urls: ['https://store.steampowered.com/app/123'] }), false);
+assert.equal(isBlockedPromotion({ title: 'لعبة غير معروفة — Steam', sourceGroup: 'IsThereAnyDeal' }), true);
+assert.deepEqual(prioritizeShops([
+  { title: 'GOG primeiro na API', preferredShop: false, discountPercent: 99 },
+  { title: 'Steam relevante', preferredShop: true, discountPercent: 10 },
+  { title: 'Epic relevante', preferredShop: true, discountPercent: 20 },
+]), [
+  { title: 'Steam relevante', preferredShop: true, discountPercent: 10 },
+  { title: 'Epic relevante', preferredShop: true, discountPercent: 20 },
+  { title: 'GOG primeiro na API', preferredShop: false, discountPercent: 99 },
+]);
 assert.equal(toPromo({
   id: 'other-shop',
   title: 'Jogo de outra loja',

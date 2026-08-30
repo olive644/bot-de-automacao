@@ -27,7 +27,11 @@ function isBlockedPromotion(promo) {
     ...(Array.isArray(promo?.urls) ? promo.urls : []),
   ].filter(Boolean).join(' ');
 
-  return /\bfanatical\b/i.test(text);
+  if (/\bfanatical\b/i.test(text)) return true;
+
+  const isItad = promo?.sourceGroup === 'IsThereAnyDeal';
+  const hasArabicTitle = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]/u.test(promo?.title || '');
+  return isItad && config.itadExcludeArabicTitles && hasArabicTitle;
 }
 
 /**
@@ -42,7 +46,7 @@ function loadQueueFromDisk() {
       queue.push(...allowed);
       const discarded = data.length - allowed.length;
       logger.info(`[Fila] ${allowed.length} promoção(ões) restaurada(s) do backup.`);
-      if (discarded > 0) logger.info(`[Fila] ${discarded} oferta(s) da Fanatical removida(s) do backup.`);
+      if (discarded > 0) logger.info(`[Fila] ${discarded} oferta(s) de jogos bloqueada(s) removida(s) do backup.`);
       fs.unlinkSync(QUEUE_FILE);
     }
   } catch (error) {
@@ -83,7 +87,7 @@ loadQueueFromDisk();
  */
 function enqueue(promo) {
   if (isBlockedPromotion(promo)) {
-    logger.info(`[Fila] Oferta da Fanatical ignorada: ${promo?.title || 'sem título'}`);
+    logger.info(`[Fila] Oferta bloqueada ignorada: ${promo?.title || 'sem título'}`);
     return false;
   }
   queue.push(promo);
@@ -212,7 +216,7 @@ async function startProcessing(client) {
       logger.info(`[Fila] Processando promoção. Restam ${queue.length} na fila.`);
 
       if (isBlockedPromotion(promo)) {
-        logger.info(`[Fila] Oferta antiga da Fanatical descartada: ${promo?.title || 'sem título'}`);
+        logger.info(`[Fila] Oferta antiga bloqueada descartada: ${promo?.title || 'sem título'}`);
         continue;
       }
 
