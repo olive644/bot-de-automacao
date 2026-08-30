@@ -8,3 +8,4 @@ qrcode.png
 .itad_seen.json
 .telegram_offset.json
 .queue_backup.json
+logs/

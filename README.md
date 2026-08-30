@@ -354,9 +354,39 @@ O bot precisa de duas coisas que definem onde ele pode morar:
 
 A Vercel executa funções serverless: elas sobem, respondem e morrem, com duração máxima e sem disco persistente em runtime. Os dois requisitos acima são incompatíveis com esse modelo, e não existe configuração que contorne. A Vercel continua ótima para o `api/mercadolivre/callback.js`, que é uma requisição pontual.
 
-### O que funciona
+### Opção 1: nesta máquina, com início automático
 
-**Railway é o caminho recomendado — o passo a passo completo está em [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md).**
+Custo zero. O bot sobe quando você entra no Windows e se reergue sozinho se cair.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\instalar-auto-start.ps1
+```
+
+Isso registra a tarefa `OliBot` no Agendador de Tarefas. Para iniciar sem esperar o próximo logon:
+
+```bash
+powershell -Command "Start-ScheduledTask -TaskName OliBot"
+```
+
+Uma janela de console abre com a saída do bot — é nela que o QR Code aparece na primeira execução. Tudo também é gravado em `logs/bot.log`, com rotação a cada 10 MB:
+
+```bash
+powershell -Command "Get-Content logs\bot.log -Encoding UTF8 -Tail 30 -Wait"
+```
+
+O `-Encoding UTF8` não é enfeite: sem ele o PowerShell 5.1 lê o arquivo na codepage ANSI e os acentos saem embaralhados.
+
+Para desfazer, sem apagar nada do projeto nem a sessão do WhatsApp:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\remover-auto-start.ps1
+```
+
+O gatilho é o **logon**, não o boot. "Ao iniciar o sistema" exigiria guardar a senha da sua conta no Windows, e o bot não precisa disso. Em troca, o computador precisa estar ligado e com sessão aberta.
+
+### Opção 2: container em serviço pago
+
+**Railway — o passo a passo completo está em [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md).** O plano Hobby custa US$ 5/mês, cobrados mesmo com uso abaixo disso; o trial é um crédito único de US$ 5 válido por 30 dias.
 
 O `Dockerfile` e o `railway.json` na raiz também servem para Render, Fly.io e qualquer VPS com Docker. A imagem já instala as bibliotecas de sistema que o Chrome headless exige no Debian slim.
 
