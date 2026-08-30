@@ -3,6 +3,8 @@
 // Formato: [HH:MM:SS] [LEVEL] mensagem
 // ============================================
 
+const fs = require('fs');
+const path = require('path');
 const config = require('../config');
 
 // Mapa de prioridade dos níveis de log
@@ -15,6 +17,34 @@ const LOG_LEVELS = {
 
 // Nível mínimo configurado (tudo abaixo é ignorado)
 const currentLevel = LOG_LEVELS[config.logLevel] ?? LOG_LEVELS.INFO;
+
+// Com LOG_FILE definido, tudo que sai no console sai também no arquivo. É o
+// que permite acompanhar o bot depois, quando ele sobe sozinho pelo
+// Agendador de Tarefas e ninguém está olhando a janela.
+const logFile = process.env.LOG_FILE
+  ? path.resolve(__dirname, '../../', process.env.LOG_FILE)
+  : null;
+let logStream = null;
+
+if (logFile) {
+  try {
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    // Um arquivo de log indisponível nunca pode derrubar o bot.
+    logStream.on('error', () => { logStream = null; });
+  } catch (_) {
+    logStream = null;
+  }
+}
+
+function writeToFile(line) {
+  if (!logStream) return;
+  try {
+    logStream.write(`${line}\n`);
+  } catch (_) {
+    logStream = null;
+  }
+}
 
 /**
  * Formata o timestamp atual como HH:MM:SS
@@ -37,8 +67,19 @@ function log(level, message, data) {
 
   if (data !== undefined) {
     console.log(`${prefix} ${message}`, data);
+    writeToFile(`${prefix} ${message} ${safeStringify(data)}`);
   } else {
     console.log(`${prefix} ${message}`);
+    writeToFile(`${prefix} ${message}`);
+  }
+}
+
+function safeStringify(data) {
+  if (typeof data === 'string') return data;
+  try {
+    return JSON.stringify(data);
+  } catch (_) {
+    return String(data);
   }
 }
 
