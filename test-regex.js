@@ -45,15 +45,26 @@ const testMessages = [
     expectedOriginal: 'R$ 199,90',
     expectedCurrent: 'R$ 89,90',
     expectedCoupons: ['JOGA20'],
-    expectedCouponLine: 'Use o cupom: JOGA20',
+    // "Use o cupom: JOGA20" só repete o código, que já sai em destaque.
+    unexpectedInMessage: 'Use o cupom',
   },
   {
     name: 'Linha complexa de cupom preservada',
     text: 'Monitor gamer em oferta\nPor: R$ 899,90\n🏷️ Cupom de R$ 100 acima de R$ 1.000: MONITOR100\nhttps://www.exemplo.com.br/monitor',
     expectedOriginal: null,
     expectedCurrent: 'R$ 899,90',
+    // O código sai em destaque e a condição de uso fica logo abaixo.
+    expectedCoupons: ['MONITOR100'],
     // A decoração da origem sai: a fila já prefixa 🎟️ e aplica negrito.
     expectedCouponLine: 'Cupom de R$ 100 acima de R$ 1.000: MONITOR100',
+  },
+  {
+    name: 'Cupom sem código legível não inventa código',
+    text: 'Placa de vídeo\nPor: R$ 1.499,00\n🎟️ Cupom de R$ 50 na primeira compra\nhttps://www.exemplo.com.br/placa',
+    expectedOriginal: null,
+    expectedCurrent: 'R$ 1.499,00',
+    expectedCoupons: [],
+    expectedCouponLine: 'Cupom de R$ 50 na primeira compra',
   },
   {
     // Formato real do grupo TECNOART: preço anterior riscado e preço atual na
@@ -64,6 +75,8 @@ const testMessages = [
     expectedOriginal: 'R$799,00',
     expectedCurrent: 'R$499,56',
     expectedTitle: 'Processador AMD Ryzen 5 5500 AM4',
+    // "RESGATE" é chamada, não código: não pode virar cupom.
+    expectedCoupons: [],
     expectedCouponLine: 'RESGATE o Cupom',
   },
 ];
@@ -114,13 +127,17 @@ testMessages.forEach((test, idx) => {
     } else if (test.expectedCurrent) {
       assert.ok(formatted.includes(`*Preço: ${test.expectedCurrent}*`));
     }
-    if (test.expectedCoupons && !test.expectedCouponLine) {
+    if (test.expectedCoupons) {
+      // O código sai sozinho, em monoespaçado, para a pessoa copiar.
       test.expectedCoupons.forEach((coupon) => {
-        assert.ok(formatted.includes(`\`${coupon}\``), `Cupom ausente da mensagem: ${coupon}`);
+        assert.ok(formatted.includes(`*CUPOM:* \`${coupon}\``), `Cupom ausente da mensagem: ${coupon}`);
       });
     }
     if (test.expectedCouponLine) {
       assert.ok(formatted.includes(test.expectedCouponLine), `Linha de cupom ausente: ${test.expectedCouponLine}`);
+    }
+    if (test.unexpectedInMessage) {
+      assert.ok(!formatted.includes(test.unexpectedInMessage), `Texto redundante na mensagem: ${test.unexpectedInMessage}`);
     }
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');

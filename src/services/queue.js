@@ -99,6 +99,39 @@ function enqueue(promo) {
   return true;
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+}
+
+/**
+ * Diz se a linha de cupom não acrescenta nada além do próprio código.
+ * "Use o cupom: JOGA20" só repete o código; já "Cupom de R$ 100 acima de
+ * R$ 1.000: MONITOR100" carrega a condição de uso e precisa ser mantida.
+ */
+function onlyRepeatsCoupon(line, coupon) {
+  const remaining = String(line || '')
+    .replace(new RegExp(escapeRegExp(coupon), 'gi'), ' ')
+    .replace(/\b(?:use|usar|aplique|o|a|os|as|do|da|de|no|na|com|cupom|cupons|c[oó]digo|promocional|desconto)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+  return remaining.length < 4;
+}
+
+/**
+ * Monta o bloco do cupom. O código vem sozinho, em monoespaçado, porque é o
+ * que a pessoa precisa copiar; a condição de uso vem logo abaixo, e só
+ * quando diz algo além do código.
+ */
+function buildCouponBlock(promo) {
+  const coupons = Array.isArray(promo.coupons) ? promo.coupons : [];
+  const couponLines = Array.isArray(promo.couponLines) ? promo.couponLines : [];
+
+  const block = coupons.map((coupon) => `🎟️ *CUPOM:* \`${coupon}\``);
+  const extras = couponLines.filter((line) => !coupons.some((coupon) => onlyRepeatsCoupon(line, coupon)));
+
+  if (coupons.length === 0) return extras.map((line) => `🎟️ *${line}*`);
+  return [...block, ...extras.map((line) => `↳ ${line}`)];
+}
+
 /**
  * Formata a mensagem de promoção para envio no grupo destino.
  * Personaliza o formato conforme desejar.
@@ -120,11 +153,10 @@ function formatMessage(promo) {
     parts.push(`💰 *Preço: ${promo.currentPrice}*`);
   }
 
-  if (promo.couponLines && promo.couponLines.length > 0) {
-    promo.couponLines.forEach((line) => parts.push(`🎟️ *${line}*`));
-  } else if (promo.coupons && promo.coupons.length > 0) {
-    const couponText = promo.coupons.map((coupon) => `\`${coupon}\``).join(' | ');
-    parts.push(`🎟️ *Cupom:* ${couponText}`);
+  const couponBlock = buildCouponBlock(promo);
+  if (couponBlock.length > 0) {
+    parts.push('');
+    parts.push(...couponBlock);
   }
 
   if (promo.urls && promo.urls.length > 0) {
@@ -280,5 +312,6 @@ module.exports = {
   getQueueStats,
   saveBeforeExit,
   formatMessage,
+  buildCouponBlock,
   isBlockedPromotion,
 };

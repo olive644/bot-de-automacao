@@ -16,6 +16,8 @@ O Oli - Bot escuta promoções em grupos e canais de origem e as publica em um g
 ✅ **Detecção de duplicatas** — evita repostar a mesma promoção  
 ✅ **Logs detalhados** — auditoria completa de cada ação  
 ✅ **Setup automático** — verifica dependências antes de rodar  
+✅ **Telegram como fonte (opcional)** — grupos e canais via bot do @BotFather
+✅ **Cupom em destaque** — o código sai sozinho, pronto para copiar
 ✅ **Mercado Livre (opcional)** — Ofertas do Dia sem token, chave, OAuth ou navegador
 ✅ **ITAD para jogos de PC (opcional)** — Steam, GOG e lojas parceiras com desconto real
 
@@ -220,6 +222,60 @@ Todos os eventos são logados com timestamps. Exemplo:
 
 ---
 
+## ✈️ Telegram como fonte
+
+Além dos grupos do WhatsApp, o bot pode escutar grupos e canais do Telegram. A promoção capturada segue pela mesma fila e chega ao mesmo grupo de destino, com preço, cupom e imagem.
+
+A leitura usa um bot criado no @BotFather. Não pede seu número de telefone e não coloca sua conta pessoal em risco.
+
+### Passo a passo
+
+1. No Telegram, fale com **@BotFather** e envie `/newbot`. Guarde o token que ele devolve.
+2. Ainda no @BotFather, envie `/setprivacy`, escolha o seu bot e selecione **Disable**. Sem isso o bot fica cego para as mensagens de grupo.
+3. Adicione o bot em cada grupo de origem. **Em canal, ele precisa ser administrador** para conseguir ler os posts.
+4. Preencha o `.env`:
+
+```env
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=123456789:AA...
+TELEGRAM_SOURCE_CHATS=@ofertastech,-1001234567890
+TELEGRAM_SEND_IMAGES=true
+```
+
+`TELEGRAM_SOURCE_CHATS` aceita as três formas de identificar um chat: id numérico, `@usuario` e link `t.me/usuario`. Deixar a lista vazia não escuta nada — o bot nunca repassa tudo o que enxerga.
+
+Para descobrir o id numérico de um grupo privado, adicione o bot ao grupo, mande qualquer mensagem lá e rode o bot com `LOG_LEVEL=DEBUG`: o id aparece no log.
+
+### Limite que vale conhecer
+
+Um bot do Telegram só lê o que ele mesmo participa. Canal público que você apenas acompanha, sem poder adicionar o bot como administrador, fica fora do alcance — não é configuração, é regra da plataforma.
+
+O bot usa long polling, então não precisa de porta aberta nem de URL pública. Se o mesmo token estiver sendo lido por outro processo ou tiver um webhook ativo, o Telegram responde `409` e o log explica o que fazer.
+
+---
+
+## 🎟️ Cupom em destaque
+
+Quando a promoção de origem traz um código de cupom, ele sai sozinho, em monoespaçado, para ser copiado com um toque:
+
+```
+✨ *OFERTA ENCONTRADA*
+
+*Monitor gamer*
+💰 *Preço: R$ 899,90*
+
+🎟️ *CUPOM:* `MONITOR100`
+↳ Cupom de R$ 100 acima de R$ 1.000: MONITOR100
+
+🔗 https://www.exemplo.com.br/monitor
+```
+
+A condição de uso vem abaixo, com `↳`, e só quando diz algo além do próprio código — "Use o cupom: JOGA20" some, porque o código já está em destaque. Quando a origem menciona cupom sem informar código ("Cupom de R$ 50 na primeira compra"), a linha é repassada inteira.
+
+O código precisa parecer código: alfanumérico em caixa alta, com pelo menos três caracteres. É isso que impede o bot de anunciar `de` ou `RESGATE` como se fosse cupom.
+
+---
+
 ## 🛒 Ofertas do Dia do Mercado Livre
 
 O Oli - Bot lê a página pública `mercadolivre.com.br/ofertas` e envia somente itens cujo preço anterior é maior que o preço atual. Não requer token, chave, conta vendedora, OAuth, Vercel nem navegador headless — é uma requisição HTTP simples.
@@ -284,6 +340,40 @@ A lista `ITAD_SHOPS` também é validada dentro do bot. Fanatical é bloqueada n
 O ITAD já devolve a melhor oferta atual por jogo; o Oli - Bot prioriza Steam e Epic Games Store, aceita também GOG e Nuuvem e exclui bundles, cursos, masterclasses e títulos em árabe. A consulta usa a ordem de relevância do ITAD, aceita qualquer desconto real e exige por padrão 100 avaliações na Steam para evitar que a lista seja dominada por jogos obscuros com descontos de 95–99%. Para ampliar ou restringir o catálogo, altere `ITAD_MIN_STEAM_REVIEWS`.
 
 Ele envia no máximo a quantidade configurada e guarda as ofertas vistas para não repetir o mesmo preço.
+
+---
+
+## 🕓 Rodando 24 horas
+
+O bot precisa de duas coisas que definem onde ele pode morar:
+
+1. **Processo vivo o tempo todo.** Ele mantém um Chrome aberto e um WebSocket com o WhatsApp Web.
+2. **Disco que sobrevive a reinício.** A pasta `.wwebjs_auth` guarda a sessão; sem ela, cada reinício pede QR Code novo.
+
+### Por que não dá para usar a Vercel
+
+A Vercel executa funções serverless: elas sobem, respondem e morrem, com duração máxima e sem disco persistente em runtime. Os dois requisitos acima são incompatíveis com esse modelo, e não existe configuração que contorne. A Vercel continua ótima para o `api/mercadolivre/callback.js`, que é uma requisição pontual.
+
+### O que funciona
+
+O `Dockerfile` na raiz serve para Railway, Render, Fly.io e qualquer VPS com Docker. Ele já instala as bibliotecas de sistema que o Chrome headless exige no Debian slim.
+
+Em qualquer um desses serviços, dois cuidados:
+
+- **Monte um volume persistente em `/app/.wwebjs_auth`.** Sem isso a sessão do WhatsApp se perde a cada deploy.
+- **Configure as variáveis do `.env` no painel do serviço**, não no repositório.
+
+Na primeira subida, o QR Code aparece nos logs do container — leia com o celular uma vez e a sessão fica guardada no volume.
+
+Localmente, com Docker:
+
+```bash
+docker build -t oli-bot .
+```
+
+```bash
+docker run -it --env-file .env -v oli-wwebjs:/app/.wwebjs_auth oli-bot
+```
 
 ---
 
