@@ -267,7 +267,7 @@ function startTelegramWebSource() {
 
   loadSeen();
   const lista = config.telegramWebChannels.map(normalizeChannel).filter(Boolean).map((c) => '@' + c);
-  logger.info(`[Telegram web] Canais públicos ativos: ${lista.join(', ')} — a cada ${config.telegramWebPollMinutes} min.`);
+  logger.info(`[Telegram web] Canais públicos ativos: ${lista.join(', ')}, a cada ${config.telegramWebPollMinutes} min.`);
   poll();
   timer = setInterval(poll, config.telegramWebPollMinutes * 60 * 1000);
 }
