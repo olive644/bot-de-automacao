@@ -216,7 +216,7 @@ function buildReputationLine(promo) {
 }
 
 /**
- * Preserva avisos que a própria origem deu — "só funciona no app", "clique
+ * Preserva avisos que a própria origem deu: "só funciona no app", "clique
  * no 1º anúncio". Sem isso a instrução some em silêncio, e é exatamente o
  * que explica por que um link de "moedas" da AliExpress não abre direto no
  * produto: quem postou já tinha avisado, e a gente descartava o aviso.

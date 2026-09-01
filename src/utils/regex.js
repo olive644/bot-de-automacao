@@ -31,7 +31,7 @@ function extractPrices(text) {
 
   // Captura: R$ 99,90 | R$ 1.299,90 | R$99 | R$ 10.000,00
   // [~*_]* nos dois lados dos dígitos: a marcação do WhatsApp às vezes fica
-  // colada nos números, não em volta do "R$ " inteiro — "R$ ~325,99~",
+  // colada nos números, não em volta do "R$ " inteiro: "R$ ~325,99~",
   // "R$ *240,58*". Sem isso o preço inteiro deixava de casar.
   const priceRegex = /R\$\s?[~*_]*\d{1,3}(?:\.\d{3})*(?:,\d{2})?[~*_]*/gi;
   const matches = text.match(priceRegex);
@@ -82,7 +82,7 @@ function extractCoupons(text) {
 
   // 1) Código logo depois do rótulo: "Cupom: OLI10", "código GAME20".
   // A flag "i" é essencial aqui: "Cupom" maiúsculo é o jeito mais comum de
-  // escrever no início de linha, e sem ela esta regra nunca casava — só
+  // escrever no início de linha, e sem ela esta regra nunca casava: só
   // funcionava por acidente quando o código caía no fim da linha e a
   // regra 2, abaixo, cobria o caso via COUPON_PATTERN (que já tem "i").
   const aposRotulo = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-zA-Z0-9][a-zA-Z0-9_-]{2,30})\b/gi;
@@ -134,7 +134,7 @@ function extractCouponLines(text) {
 
 // Emoji de alerta que canais de promoção usam para instruções importantes:
 // "só funciona no app", "estoque limitado", "clique no 1º anúncio". Sem
-// preservar isso, a instrução some em silêncio — e é exatamente o que
+// preservar isso, a instrução some em silêncio, e é exatamente o que
 // explica por que um link de "moedas" da AliExpress não abre direto no
 // produto, algo que o vendedor já tinha avisado no texto original.
 const NOTE_LINE_PATTERN = /^[\s]*(?:❗️?|⚠️?|🚨|‼️?|⛔️?)\s*/u;
@@ -168,7 +168,7 @@ function extractPriceDetails(text, prices = extractPrices(text)) {
   // `[\s:~*_]*` depois do rótulo: o preço costuma vir riscado ou em negrito,
   // como "De: ~R$799,00~", e o til impedia o casamento. O mesmo padrão
   // aparece de novo dentro do parêntese porque a marcação também fica
-  // colada aos dígitos, não só em volta do "R$ " inteiro — "R$ ~325,99~",
+  // colada aos dígitos, não só em volta do "R$ " inteiro: "R$ ~325,99~",
   // "🔥 Por: R$ *240,58 _(COM CUPOM)_*".
   const pricePattern = '(R\\$\\s?[~*_]*\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?[~*_]*)';
   const originalMatch = text.match(new RegExp(`\\b(?:de|era)\\b[\\s:~*_]*${pricePattern}`, 'i'));
