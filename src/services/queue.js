@@ -13,6 +13,7 @@ const { downloadImage } = require('../utils/media');
 const { applyWatermark } = require('../utils/watermark');
 const { lojaDaPromocao } = require('../utils/plataforma');
 const { isQuietHour } = require('../utils/horario');
+const { formatarHorario } = require('../utils/horario-parse');
 const { isDuplicate } = require('./dedupe');
 
 // Fila FIFO interna — armazena as promoções pendentes
@@ -344,7 +345,7 @@ function marcarAvisoEnviado() {
 async function announceQuietHours(client) {
   if (!config.quietHoursNotice || avisoJaEnviadoHoje()) return;
 
-  const fim = `${String(config.quietHoursEnd).padStart(2, '0')}h`;
+  const fim = formatarHorario(config.quietHoursEnd);
   // Um "\n" vindo do .env chega como dois caracteres, não como quebra.
   const texto = config.quietHoursNotice
     .split('\\n').join('\n')
