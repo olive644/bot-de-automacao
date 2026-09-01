@@ -1,7 +1,7 @@
 // ============================================
 // Horário de silêncio.
 //
-// Ninguém do grupo quer notificação às 3 da manhã. Durante a janela de
+// Ninguém do grupo quer notificação de madrugada. Durante a janela de
 // silêncio o bot não envia — e também não coleta.
 //
 // Não coletar é o ponto que não é óbvio. Se os coletores seguissem
@@ -12,23 +12,31 @@
 //
 // O listener do WhatsApp é exceção: ele depende de alguém publicar, o
 // volume é pequeno e essas são as fontes que o dono escolheu a dedo.
+//
+// Os horários vêm da configuração já em minutos desde a meia-noite, para
+// aceitar tanto "21" quanto "22:30": ver utils/horario-parse.js.
 // ============================================
 
 const config = require('../config');
+const { formatarHorario } = require('./horario-parse');
+
+function minutosDoDia(date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
 
 /**
- * A janela pode cruzar a meia-noite (21h às 6h), então a comparação muda
+ * A janela pode cruzar a meia-noite (22h30 às 6h), então a comparação muda
  * conforme o início seja maior ou menor que o fim.
  */
 function isQuietHour(date = new Date(), inicio = config.quietHoursStart, fim = config.quietHoursEnd) {
   if (!config.quietHoursEnabled) return false;
-  if (!Number.isInteger(inicio) || !Number.isInteger(fim) || inicio === fim) return false;
+  if (!Number.isFinite(inicio) || !Number.isFinite(fim) || inicio === fim) return false;
 
-  const hora = date.getHours();
-  // Janela que vira o dia: 21, 22, 23, 0, 1, ... 5.
-  if (inicio > fim) return hora >= inicio || hora < fim;
-  // Janela dentro do mesmo dia: 1 às 6.
-  return hora >= inicio && hora < fim;
+  const agora = minutosDoDia(date);
+  // Janela que vira o dia: 22h30, 23h, 0h, ... 5h59.
+  if (inicio > fim) return agora >= inicio || agora < fim;
+  // Janela dentro do mesmo dia: 1h às 6h.
+  return agora >= inicio && agora < fim;
 }
 
 /**
@@ -36,16 +44,13 @@ function isQuietHour(date = new Date(), inicio = config.quietHoursStart, fim = c
  * algo útil em vez de repetir "em silêncio" a cada verificação.
  */
 function minutesUntilQuietEnds(date = new Date(), fim = config.quietHoursEnd) {
-  const alvo = new Date(date);
-  alvo.setMinutes(0, 0, 0);
-  alvo.setHours(fim);
-  if (alvo <= date) alvo.setDate(alvo.getDate() + 1);
-  return Math.round((alvo - date) / 60000);
+  const agora = minutosDoDia(date);
+  const falta = fim - agora;
+  return falta > 0 ? falta : falta + 24 * 60;
 }
 
 function describeQuietWindow() {
-  const doisDigitos = (h) => String(h).padStart(2, '0');
-  return `${doisDigitos(config.quietHoursStart)}h às ${doisDigitos(config.quietHoursEnd)}h`;
+  return `${formatarHorario(config.quietHoursStart)} às ${formatarHorario(config.quietHoursEnd)}`;
 }
 
 module.exports = { isQuietHour, minutesUntilQuietEnds, describeQuietWindow };

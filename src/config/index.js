@@ -5,6 +5,7 @@
 
 const path = require('path');
 const { normalizeChatId } = require('../utils/chat-id');
+const { parseHorario } = require('../utils/horario-parse');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 function parseNumberList(value, fallback) {
@@ -47,8 +48,10 @@ const config = {
   // Horário de silêncio: o bot não envia nem coleta nessa janela.
   // Não coletar é de propósito — ver src/utils/horario.js.
   quietHoursEnabled: process.env.QUIET_HOURS_ENABLED !== 'false',
-  quietHoursStart: Math.min(23, Math.max(0, parseInt(process.env.QUIET_HOURS_START, 10) || 21)),
-  quietHoursEnd: Math.min(23, Math.max(0, parseNonNegativeInteger(process.env.QUIET_HOURS_END, 6))),
+  // Aceita hora cheia (21) e hora com minutos (22:30, 22h30).
+  // Guardado em minutos desde a meia-noite.
+  quietHoursStart: parseHorario(process.env.QUIET_HOURS_START, 21 * 60),
+  quietHoursEnd: parseHorario(process.env.QUIET_HOURS_END, 6 * 60),
   // Aviso enviado ao grupo quando o silêncio começa. Vazio não avisa.
   // O \n no .env chega como texto; a troca por quebra real é feita na fila.
   quietHoursNotice: process.env.QUIET_HOURS_NOTICE === ''
