@@ -216,6 +216,17 @@ function buildReputationLine(promo) {
 }
 
 /**
+ * Preserva avisos que a própria origem deu — "só funciona no app", "clique
+ * no 1º anúncio". Sem isso a instrução some em silêncio, e é exatamente o
+ * que explica por que um link de "moedas" da AliExpress não abre direto no
+ * produto: quem postou já tinha avisado, e a gente descartava o aviso.
+ */
+function buildNoteBlock(promo) {
+  const notas = Array.isArray(promo.notes) ? promo.notes : [];
+  return notas.map((nota) => `⚠️ _${nota}_`);
+}
+
+/**
  * Formata a mensagem de promoção para envio no grupo destino.
  *
  * @param {object} promo - Objeto da promoção
@@ -237,6 +248,12 @@ function formatMessage(promo) {
   if (couponBlock.length > 0) {
     parts.push('');
     parts.push(...couponBlock);
+  }
+
+  const noteBlock = buildNoteBlock(promo);
+  if (noteBlock.length > 0) {
+    parts.push('');
+    parts.push(...noteBlock);
   }
 
   if (promo.urls && promo.urls.length > 0) {
@@ -471,5 +488,6 @@ module.exports = {
   buildCouponBlock,
   buildHeader,
   buildPriceBlock,
+  buildNoteBlock,
   isBlockedPromotion,
 };

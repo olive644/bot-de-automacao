@@ -79,6 +79,41 @@ const testMessages = [
     expectedCoupons: [],
     expectedCouponLine: 'RESGATE o Cupom',
   },
+  {
+    // Caso real do TECNOART que chegou ao grupo sem nenhum preço: a
+    // marcação do WhatsApp ficava colada aos dígitos, não em volta do
+    // "R$" inteiro — "R$ ~325,99~" e "R$ *240,58*" — e o regex de preço
+    // não casava com nenhum dos dois, então prices ficava vazio.
+    name: 'Preço com marcação colada aos dígitos (não só em volta do texto)',
+    text: 'Processador Intel Xeon E5-2667 V4 3.2GHz Turbo 3.6GHz 8 Núcleos FCLGA2011-3!\r\n\r\nDe: R$ ~325,99~\r\n🔥 Por: R$ *240,58 _(COM CUPOM)_*\r\n\r\n🎟️Use o Cupom: *QUEROPROMO*\r\n\r\n🔗  Link do Produto:\r\nhttps://meli.la/2tCD7ky',
+    expectedOriginal: 'R$ 325,99',
+    expectedCurrent: 'R$ 240,58',
+    expectedCoupons: ['QUEROPROMO'],
+  },
+  {
+    // "Cupom" maiúsculo é o jeito mais comum de escrever no início de
+    // linha, e a regra 1 de extractCoupons não tinha a flag "i": só
+    // casava "cupom" minúsculo. Passava batido porque a regra 2 (código
+    // no fim da linha) cobria por acidente quando não havia nada depois
+    // do código — mas "+ Moedas" depois de "BRFS3" já derrubava as duas.
+    name: 'Cupom maiúsculo com texto depois do código',
+    text: 'Placa-mãe B450m\nValor: R$290\nCupom: BRFS3 + Moedas\nhttps://www.exemplo.com.br/placa-mae',
+    expectedOriginal: null,
+    expectedCurrent: 'R$290',
+    expectedCoupons: ['BRFS3'],
+  },
+  {
+    // Caso real do canal @LopesPromo: o link de "moedas" da AliExpress só
+    // funciona no app, e o próprio vendedor avisou isso com um ❗️. Antes,
+    // esse aviso não era preço, cupom nem URL — então sumia em silêncio, e
+    // quem recebia a oferta não entendia por que o link "abria uma aba
+    // aleatória" em vez do produto.
+    name: 'Aviso da origem preservado (link que só funciona no app)',
+    text: 'Placa-mãe B450m Qiyida, Ryzen de 1ª a 5ª geração\n\nValor: R$290\n\nCupom: BRFS3 + Moedas\n\nLink: https://s.click.aliexpress.com/e/_c34DgdMx\n❗️Apenas APP no CELULAR, vai abrir a pág de moedas e clique no 1° anúncio (se não aparecer, vai na aba BRASIL)',
+    expectedOriginal: null,
+    expectedCurrent: 'R$290',
+    expectedNote: 'Apenas APP no CELULAR, vai abrir a pág de moedas e clique no 1° anúncio (se não aparecer, vai na aba BRASIL)',
+  },
 ];
 
 testMessages.forEach((test, idx) => {
@@ -99,6 +134,9 @@ testMessages.forEach((test, idx) => {
   }
   if (test.expectedCouponLine) {
     assert.ok(info.couponLines.includes(test.expectedCouponLine));
+  }
+  if (test.expectedNote) {
+    assert.ok(info.notes.includes(test.expectedNote), `Aviso ausente na extração: ${test.expectedNote}`);
   }
   console.log('📝 Mensagem:');
   console.log('   ' + test.text.replace(/\n/g, '\n   '));
@@ -141,6 +179,9 @@ testMessages.forEach((test, idx) => {
     }
     if (test.unexpectedInMessage) {
       assert.ok(!formatted.includes(test.unexpectedInMessage), `Texto redundante na mensagem: ${test.unexpectedInMessage}`);
+    }
+    if (test.expectedNote) {
+      assert.ok(formatted.includes(test.expectedNote), `Aviso ausente na mensagem final: ${test.expectedNote}`);
     }
   } else {
     console.log('   ⚠️  Nenhuma URL encontrada');

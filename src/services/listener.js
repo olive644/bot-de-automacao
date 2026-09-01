@@ -117,6 +117,7 @@ async function processMessage(message, sourceName, sourceId, text) {
     prices: promoInfo.prices,
     coupons: promoInfo.coupons,
     couponLines: promoInfo.couponLines,
+    notes: promoInfo.notes,
     originalPrice: promoInfo.originalPrice,
     currentPrice: promoInfo.currentPrice,
     media,
