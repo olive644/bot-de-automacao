@@ -30,10 +30,15 @@ function extractPrices(text) {
   if (!text) return [];
 
   // Captura: R$ 99,90 | R$ 1.299,90 | R$99 | R$ 10.000,00
-  const priceRegex = /R\$\s?\d{1,3}(?:\.\d{3})*(?:,\d{2})?/gi;
+  // [~*_]* nos dois lados dos dígitos: a marcação do WhatsApp às vezes fica
+  // colada nos números, não em volta do "R$ " inteiro: "R$ ~325,99~",
+  // "R$ *240,58*". Sem isso o preço inteiro deixava de casar.
+  const priceRegex = /R\$\s?[~*_]*\d{1,3}(?:\.\d{3})*(?:,\d{2})?[~*_]*/gi;
   const matches = text.match(priceRegex);
+  if (!matches) return [];
 
-  return matches || [];
+  // A marcação nunca deve aparecer no valor exibido no grupo.
+  return matches.map((match) => match.replace(/[~*_]/g, ''));
 }
 
 const COUPON_PATTERN = /\b(?:cupom|c[oó]digo\s+promocional)\b/i;
@@ -76,7 +81,11 @@ function extractCoupons(text) {
   };
 
   // 1) Código logo depois do rótulo: "Cupom: OLI10", "código GAME20".
-  const aposRotulo = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-zA-Z0-9][a-zA-Z0-9_-]{2,30})\b/g;
+  // A flag "i" é essencial aqui: "Cupom" maiúsculo é o jeito mais comum de
+  // escrever no início de linha, e sem ela esta regra nunca casava: só
+  // funcionava por acidente quando o código caía no fim da linha e a
+  // regra 2, abaixo, cobria o caso via COUPON_PATTERN (que já tem "i").
+  const aposRotulo = /\b(?:cupom(?:\s+de\s+desconto)?|c[oó]digo(?:\s+promocional)?)\s*(?:é|:|-|=)?\s*[`*_\s]*([a-zA-Z0-9][a-zA-Z0-9_-]{2,30})\b/gi;
   let match;
   while ((match = aposRotulo.exec(text)) !== null) adicionar(match[1]);
 
@@ -123,19 +132,51 @@ function extractCouponLines(text) {
   return [...new Set(lines)];
 }
 
+// Emoji de alerta que canais de promoção usam para instruções importantes:
+// "só funciona no app", "estoque limitado", "clique no 1º anúncio". Sem
+// preservar isso, a instrução some em silêncio, e é exatamente o que
+// explica por que um link de "moedas" da AliExpress não abre direto no
+// produto, algo que o vendedor já tinha avisado no texto original.
+const NOTE_LINE_PATTERN = /^[\s]*(?:❗️?|⚠️?|🚨|‼️?|⛔️?)\s*/u;
+
+function isNoteLine(line) {
+  return NOTE_LINE_PATTERN.test(String(line || '').trim());
+}
+
+/**
+ * Preserva linhas de aviso marcadas com emoji de alerta no início.
+ * Exemplo: "❗️Apenas APP no CELULAR, vai abrir a pág de moedas e clique
+ * no 1° anúncio (se não aparecer, vai na aba BRASIL)".
+ */
+function extractNoteLines(text) {
+  if (!text) return [];
+  const lines = text.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && isNoteLine(line) && !/^https?:\/\//i.test(line))
+    .map((line) => line.replace(NOTE_LINE_PATTERN, '').trim())
+    .filter(Boolean)
+    .map((line) => line.slice(0, 300));
+
+  return [...new Set(lines)];
+}
+
 function extractPriceDetails(text, prices = extractPrices(text)) {
   if (!text || prices.length === 0) {
     return { originalPrice: null, currentPrice: null };
   }
 
   // `[\s:~*_]*` depois do rótulo: o preço costuma vir riscado ou em negrito,
-  // como "De: ~R$799,00~", e o til impedia o casamento.
-  const pricePattern = '(R\\$\\s?\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?)';
+  // como "De: ~R$799,00~", e o til impedia o casamento. O mesmo padrão
+  // aparece de novo dentro do parêntese porque a marcação também fica
+  // colada aos dígitos, não só em volta do "R$ " inteiro: "R$ ~325,99~",
+  // "🔥 Por: R$ *240,58 _(COM CUPOM)_*".
+  const pricePattern = '(R\\$\\s?[~*_]*\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?[~*_]*)';
   const originalMatch = text.match(new RegExp(`\\b(?:de|era)\\b[\\s:~*_]*${pricePattern}`, 'i'));
   const currentMatch = text.match(new RegExp(`\\b(?:por|agora|pre[cç]o)\\b[\\s:~*_]*${pricePattern}`, 'i'));
 
-  const originalPrice = originalMatch?.[1] || (prices.length > 1 ? prices[0] : null);
-  const currentPrice = currentMatch?.[1] || prices[prices.length - 1];
+  const clean = (value) => (value ? value.replace(/[~*_]/g, '') : value);
+  const originalPrice = clean(originalMatch?.[1]) || (prices.length > 1 ? prices[0] : null);
+  const currentPrice = clean(currentMatch?.[1]) || prices[prices.length - 1];
 
   return { originalPrice, currentPrice };
 }
@@ -147,7 +188,7 @@ function extractPriceDetails(text, prices = extractPrices(text)) {
  * - Título (primeira linha não-vazia sem URL/preço)
  *
  * @param {string} text - Texto completo da mensagem
- * @returns {{ urls: string[], prices: string[], coupons: string[], originalPrice: string|null, currentPrice: string|null, title: string, rawText: string }}
+ * @returns {{ urls: string[], prices: string[], coupons: string[], originalPrice: string|null, currentPrice: string|null, title: string, notes: string[], rawText: string }}
  */
 function extractPromoInfo(text) {
   if (!text) {
@@ -159,6 +200,7 @@ function extractPromoInfo(text) {
       originalPrice: null,
       currentPrice: null,
       title: '',
+      notes: [],
       rawText: '',
     };
   }
@@ -166,6 +208,7 @@ function extractPromoInfo(text) {
   const urls = extractUrls(text);
   const coupons = extractCoupons(text);
   const couponLines = extractCouponLines(text);
+  const notes = extractNoteLines(text);
   // Descarta as linhas de cupom antes de ler os preços, mas preserva as que
   // são preço e só citam cupom de passagem. Sem isso, "Por: R$ X com cupom"
   // sumia e o preço anterior, riscado, acabava anunciado como preço atual.
@@ -175,14 +218,16 @@ function extractPromoInfo(text) {
   const prices = extractPrices(textWithoutCouponLines);
   const { originalPrice, currentPrice } = extractPriceDetails(textWithoutCouponLines, prices);
 
-  // Tenta extrair o título: primeira linha que não seja só URL ou preço
+  // Tenta extrair o título: primeira linha que não seja só URL, preço ou
+  // aviso. Sem excluir o aviso, um "❗️Apenas APP..." que apareça antes do
+  // nome do produto vira título por engano.
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   let title = '';
 
   for (const line of lines) {
     // Pula linhas que são apenas URLs
     const isOnlyUrl = /^https?:\/\/\S+$/.test(line);
-    if (!isOnlyUrl && !isPriceLine(line)) {
+    if (!isOnlyUrl && !isPriceLine(line) && !isNoteLine(line)) {
       // A fila reaplica negrito no título; manter os asteriscos da origem
       // renderiza "**assim**" no grupo destino.
       title = line.replace(/^[*_~\s]+/, '').replace(/[*_~\s]+$/, '');
@@ -193,6 +238,7 @@ function extractPromoInfo(text) {
   return {
     urls,
     prices,
+    notes,
     coupons,
     couponLines,
     originalPrice,
@@ -207,6 +253,7 @@ module.exports = {
   extractPrices,
   extractCoupons,
   extractCouponLines,
+  extractNoteLines,
   extractPriceDetails,
   extractPromoInfo,
 };

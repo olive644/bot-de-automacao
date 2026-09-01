@@ -147,6 +147,7 @@ function toPromo(message, channelTitle) {
     prices: info.prices,
     coupons: info.coupons,
     couponLines: info.couponLines,
+    notes: info.notes,
     originalPrice: info.originalPrice,
     currentPrice: info.currentPrice,
     media: null,
