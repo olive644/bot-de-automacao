@@ -14,7 +14,7 @@
 // volume é pequeno e essas são as fontes que o dono escolheu a dedo.
 //
 // Os horários vêm da configuração já em minutos desde a meia-noite, para
-// aceitar tanto "21" quanto "22:30" — ver utils/horario-parse.js.
+// aceitar tanto "21" quanto "22:30": ver utils/horario-parse.js.
 // ============================================
 
 const config = require('../config');
