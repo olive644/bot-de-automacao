@@ -208,7 +208,7 @@ function buildPriceBlock(promo) {
  */
 function buildVariantNote(promo) {
   if (!promo.variants) return [];
-  return [`⚠️ ${promo.variants} — confira a versão no anúncio`];
+  return [`⚠️ ${promo.variants}, confira a versão no anúncio`];
 }
 
 function buildReputationLine(promo) {

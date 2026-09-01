@@ -136,9 +136,9 @@ function report() {
     if (linha.ciclos === 0) {
       logger.warn(`[Saúde] ${linha.fonte}: nenhum ciclo em ${horas}h. A fonte está ligada mas não rodou.`);
     } else if (linha.falhas === linha.ciclos) {
-      logger.warn(`[Saúde] ${resumo} — todos os ciclos falharam. Último erro: ${linha.ultimoErro}`);
+      logger.warn(`[Saúde] ${resumo}, todos os ciclos falharam. Último erro: ${linha.ultimoErro}`);
     } else if (linha.lidos === 0) {
-      logger.warn(`[Saúde] ${resumo} — rodou mas não leu nada. Provável mudança no site da fonte.`);
+      logger.warn(`[Saúde] ${resumo}, rodou mas não leu nada. Provável mudança no site da fonte.`);
     } else {
       logger.info(`[Saúde] ${resumo}.`);
       if (linha.falhas > 0) logger.warn(`[Saúde] ${linha.fonte} teve ${linha.falhas} falha(s). Último erro: ${linha.ultimoErro}`);

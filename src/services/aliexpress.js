@@ -197,7 +197,7 @@ function toPromo(item) {
     origin: item.origin || null,
     taxNote: item.origin === 'nacional'
       ? 'Sai de estoque no Brasil, sem imposto de importação'
-      : 'Importado — o valor acima NÃO inclui os impostos de importação',
+      : 'Importado, o valor acima NÃO inclui os impostos de importação',
     variants: item.multiVariant ? 'O anúncio tem versões com preços diferentes' : null,
     priceFromVariant: !!item.multiVariant,
     rating: item.rating || null,

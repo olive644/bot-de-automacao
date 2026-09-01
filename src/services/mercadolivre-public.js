@@ -264,7 +264,7 @@ function toPromo(item) {
     priceFromVariant: !!item.variants,
     origin: item.origin || null,
     taxNote: item.origin === 'internacional'
-      ? `Importado${item.shippedFrom ? ` (${item.shippedFrom})` : ''} — o valor acima NÃO inclui os impostos de importação`
+      ? `Importado${item.shippedFrom ? ` (${item.shippedFrom})` : ''}, o valor acima NÃO inclui os impostos de importação`
       : null,
     rating: item.rating || null,
     sales: item.sales || null,
