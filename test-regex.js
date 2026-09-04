@@ -114,6 +114,17 @@ const testMessages = [
     expectedCurrent: 'R$290',
     expectedNote: 'Apenas APP no CELULAR, vai abrir a pág de moedas e clique no 1° anúncio (se não aparecer, vai na aba BRASIL)',
   },
+  {
+    // Caso real do canal GRUPOSTECNOART: preço sem separador de milhar
+    // ("R$2298" em vez de "R$2.298" ou "R$ 2298"). O regex antigo só pegava
+    // os 3 primeiros dígitos e descartava o resto, então uma placa de R$2.298
+    // saía anunciada por R$229, e o preço "com desconto" de R$2098 virava
+    // R$209, dez vezes menor que o valor real do produto.
+    name: 'Preço sem separador de milhar (quatro dígitos corridos)',
+    text: 'Placa De Vídeo Amd Rx6600 8gb Gddr6 + Brinde Kit De Fans C/3\n\nDe: R$2298\n💰🔥 Valor: R$2098\n\n✅ Link do produto\nhttps://meli.la/1vEWc7S',
+    expectedOriginal: 'R$2298',
+    expectedCurrent: 'R$2098',
+  },
 ];
 
 testMessages.forEach((test, idx) => {

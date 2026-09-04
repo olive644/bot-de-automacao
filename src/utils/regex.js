@@ -29,11 +29,16 @@ function extractUrls(text) {
 function extractPrices(text) {
   if (!text) return [];
 
-  // Captura: R$ 99,90 | R$ 1.299,90 | R$99 | R$ 10.000,00
+  // Captura: R$ 99,90 | R$ 1.299,90 | R$99 | R$ 10.000,00 | R$2298
   // [~*_]* nos dois lados dos dígitos: a marcação do WhatsApp às vezes fica
   // colada nos números, não em volta do "R$ " inteiro: "R$ ~325,99~",
   // "R$ *240,58*". Sem isso o preço inteiro deixava de casar.
-  const priceRegex = /R\$\s?[~*_]*\d{1,3}(?:\.\d{3})*(?:,\d{2})?[~*_]*/gi;
+  // `\d{1,3}(?:\.\d{3})+|\d+` no lugar de `\d{1,3}(?:\.\d{3})*`: a origem
+  // às vezes escreve o preço sem separador de milhar, tipo "R$2298". Como
+  // {1,3} sozinho só pega os 3 primeiros dígitos, "R$2298" virava "R$229"
+  // e o "8" restante ficava de fora, incluído silenciosamente. A alternativa
+  // `\d+` cobre a sequência inteira quando não há ponto separando grupos.
+  const priceRegex = /R\$\s?[~*_]*(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{2})?[~*_]*/gi;
   const matches = text.match(priceRegex);
   if (!matches) return [];
 
@@ -170,7 +175,7 @@ function extractPriceDetails(text, prices = extractPrices(text)) {
   // aparece de novo dentro do parêntese porque a marcação também fica
   // colada aos dígitos, não só em volta do "R$ " inteiro: "R$ ~325,99~",
   // "🔥 Por: R$ *240,58 _(COM CUPOM)_*".
-  const pricePattern = '(R\\$\\s?[~*_]*\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?[~*_]*)';
+  const pricePattern = '(R\\$\\s?[~*_]*(?:\\d{1,3}(?:\\.\\d{3})+|\\d+)(?:,\\d{2})?[~*_]*)';
   const originalMatch = text.match(new RegExp(`\\b(?:de|era)\\b[\\s:~*_]*${pricePattern}`, 'i'));
   const currentMatch = text.match(new RegExp(`\\b(?:por|agora|pre[cç]o)\\b[\\s:~*_]*${pricePattern}`, 'i'));
 
